@@ -133,19 +133,23 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25):
 
 # === Função para impressão de resultados === #
 def imprime_balanco_potencia(dbar, pcalc, qcalc, pbase=100):
-    pd_total = dbar.pd.sum() * pbase
-    qd_total = dbar.qd.sum() * pbase
-    pg_total = dbar.pg.sum() * pbase
-    qg_total = dbar.qg.sum() * pbase
+    tipo = dbar.tipo.values
 
+    p_slack = pcalc[tipo==2].item() * pbase
+
+    pliq = (dbar.pg.values - dbar.pd.values) * pbase
+    pliq[tipo == 2] = 0
+
+    carga = np.sum(np.abs(pliq[pliq < 0]))
+    geracao = np.sum(np.abs(pliq[pliq > 0]))
+  
     # Perdas = geração - carga (baseado nas potências líquidas injetadas)
-    perdas_ativas = pg_total - pd_total
-    perdas_reativas = qg_total - qd_total
+    perdas_ativas = p_slack + geracao - carga
 
     print("\n=== Balanço de Potência ===")
-    print(f"→ Carga Total      : {pd_total:,.6f} MW  | {qd_total:,.6f} MVAr")
-    print(f"→ Geração Total    : {pg_total:,.6f} MW  | {qg_total:,.6f} MVAr")
-    print(f"→ Perdas no Sistema: {perdas_ativas:,.6f} MW ")# | {perdas_reativas:,.6f} MVAr")
+    print(f"→ Carga Total      : {carga:,.6f} MW")
+    print(f"→ Geração Total    : {geracao + p_slack:,.6f} MW")
+    print(f"→ Perdas no Sistema: {perdas_ativas:,.6f} MW ")
 
 def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100):
     tipo_map = {0: "PQ", 1: "PV", 2: "Slack"}
@@ -206,6 +210,12 @@ def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
 
 
 
+# === Configuração Inicial === #
+arquivo_pwf = 'ieee14.pwf'
+pbase = 100.
+tol = 0.0000003
+iter_max = 25
+
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
 
@@ -215,18 +225,12 @@ dlin_dataframe = converter_dlin(dlin)
 #print_dbar_info(DBAR)
 #print_dlin_info(DLIN)
 
-# === Configuração Inicial === #
-arquivo_pwf = 'ieee14.pwf'
-pbase = 100.
-tol = 0.0000003
-iter_max = 25
-
-# === Execução Principal === #
 dbar = inicializa_barras(dbar_dataframe, pbase)
 dlin = inicializa_linhas(dlin_dataframe, pbase)
 
 ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
 
+# === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, ybarra, tol, iter_max)
 
 # === Saídas para simples de verificação === #
