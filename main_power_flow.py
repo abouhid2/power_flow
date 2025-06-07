@@ -132,7 +132,7 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25):
     return v, teta, pcalc, qcalc, False
 
 # === Função para impressão de resultados === #
-def imprime_balanco_potencia(dbar, pcalc, qcalc, pbase=100):
+def imprime_balanco_potencia(dbar, pcalc, pbase=100):
     tipo = dbar.tipo.values
 
     p_slack = pcalc[tipo==2].item() * pbase
@@ -234,6 +234,6 @@ ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, ybarra, tol, iter_max)
 
 # === Saídas para simples de verificação === #
-imprime_balanco_potencia(dbar, pcalc, qcalc, pbase)
+imprime_balanco_potencia(dbar, pcalc, pbase)
 imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase)
 imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase)
