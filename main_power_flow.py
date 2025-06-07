@@ -6,7 +6,7 @@ from leitura_pwf import *
 
 
 
-# === Funções para transformar os dados de Entrada em pu === #
+# === Funções para transformar os dados de Entrada em pu e ângulo em radianos === #
 def inicializa_barras(dbar, pbase=100):
     dbar = dbar.copy()
     dbar[["pg", "qg", "qn", "qm", "pd", "qd", "shunt"]] /= pbase
@@ -100,15 +100,24 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
     return Jac
 
 # === Função para cálculo de Fluxo de Potência === #
-def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25):
+def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_start=True):
     nbar = len(dbar)
     tipo = dbar.tipo.values
-    v = dbar.v.values.copy()
-    teta = dbar.teta.values.copy()
     pg, pd = dbar.pg.values, dbar.pd.values
     qg, qd = dbar.qg.values, dbar.qd.values
     pesp, qesp = pg - pd, qg - qd
 
+    # Variáveis de estado
+    v = dbar.v.values.copy()
+    teta = dbar.teta.values.copy()
+
+    # Zera ângulos das baras PQ e PV e define como 1,0 pu tensões de barras PQ
+    if flat_start:
+        teta[tipo == 1] = 0
+        teta[tipo == 0] = 0
+        v[tipo == 0] = 1.0
+    
+    # Iterações
     for it in range(iter_max):
         delta_y, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp)
         erro_max = np.max(np.abs(delta_y))
@@ -211,7 +220,9 @@ def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'ieee14.pwf'
+#arquivo_pwf = 'ieee14.pwf'
+#arquivo_pwf = 'p2_ex1.pwf'
+arquivo_pwf = 'teste.pwf'
 pbase = 100.
 tol = 0.0000003
 iter_max = 25
@@ -231,7 +242,7 @@ dlin = inicializa_linhas(dlin_dataframe, pbase)
 ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
 
 # === Execução Principal === #
-v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, ybarra, tol, iter_max)
+v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, ybarra, tol, iter_max, flat_start=False)
 
 # === Saídas para simples de verificação === #
 imprime_balanco_potencia(dbar, pcalc, pbase)
