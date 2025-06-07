@@ -28,7 +28,7 @@ def read_pwf(filename):
                     continue
                 
                 # Initialize with None for all fields (except bus number and type)
-                dbar_row = [0, 0, None, None, None, None, None, None, None, None, None]
+                dbar_row = [0, 0, None, None, None, None, None, None, None, None, None, None]
                 
                 # Bus number (columns 1-5)
                 bus_str = line[0:5].strip()
@@ -40,11 +40,16 @@ def read_pwf(filename):
                 if type_str:
                     dbar_row[1] = int(type_str)
                 
-                # Voltage (columns 25-29)
-                voltage_str = line[24:29].strip()
+                # Voltage (columns 25-28)
+                voltage_str = line[24:28].strip()
                 if voltage_str:
                     # For voltage only, convert 10600. to 1.06
-                    dbar_row[2] = float(voltage_str) / 10000.0
+                    dbar_row[2] = float(voltage_str) / 1000.0
+
+                # Angle
+                a_str = line[28:32].strip()
+                if a_str:
+                    dbar_row[3] = float(a_str)   
                 
                 # Active generation PG (columns 33-37)
                 pg_str = line[32:37].strip()
@@ -65,21 +70,26 @@ def read_pwf(filename):
                 qm_str = line[47:52].strip()
                 if qm_str:
                     dbar_row[7] = float(qm_str)
+
+                # Control Bus
+                bc_str = line[52:58].strip()
+                if bc_str:
+                    dbar_row[8] = int(bc_str)
                 
                 # Active load PL (columns 59-63)
                 pl_str = line[58:63].strip()
                 if pl_str:
-                    dbar_row[8] = float(pl_str)
+                    dbar_row[9] = float(pl_str)
                 
                 # Reactive load QL (columns 64-68)
                 ql_str = line[63:68].strip()
                 if ql_str:
-                    dbar_row[9] = float(ql_str)
+                    dbar_row[10] = float(ql_str)
                 
                 # Shunt component SH (columns 69-73)
                 sh_str = line[68:73].strip()
                 if sh_str:
-                    dbar_row[10] = float(sh_str)
+                    dbar_row[11] = float(sh_str)
                 
                 DBAR.append(dbar_row)
                 
@@ -200,14 +210,14 @@ def print_dlin_info(dlin):
         print(f"{from_bus:^5} | {to_bus:^5} | {r:^8.4f} | {x:^8.4f} | {b:^10.4f} | {tap:^8.4f}")
 
 def converter_dbar(DBAR):
-    colunas = ["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "pd", "qd", "shunt"]
+    colunas = ["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pd", "qd", "shunt"]
     # Substitui None por 0 antes de criar o DataFrame
     DBAR_sem_none = [[0 if val is None else val for val in row] for row in DBAR]
     dbar = pd.DataFrame(DBAR_sem_none, columns=colunas)
     dbar = dbar.astype({
         "barra": int, "tipo": int, "v": float, "teta": float,
         "pg": float, "qg": float, "qn": float, "qm": float,
-        "pd": float, "qd": float, "shunt": float,
+        "bc": int, "pd": float, "qd": float, "shunt": float,
     })
     return dbar
 
