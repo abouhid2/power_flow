@@ -47,9 +47,9 @@ def read_pwf(filename):
                     dbar_row[2] = float(voltage_str) / 1000.0
 
                 # Angle
-                a_str = line[28:32].strip()
-                if a_str:
-                    dbar_row[3] = float(a_str)   
+                teta_str = line[28:32].strip()
+                if teta_str:
+                    dbar_row[3] = float(teta_str)   
                 
                 # Active generation PG (columns 33-37)
                 pg_str = line[32:37].strip()
@@ -179,9 +179,9 @@ def read_pwf(filename):
     
     # Conversão para DataFrame diretamente no final
     DBAR_sem_none = [[0 if val is None else val for val in row] for row in DBAR]
-    dbar = pd.DataFrame(DBAR_sem_none, columns=["barra", "tipo", "v", "a", "pg", "qg", "qn", "qm", "bc", "pl", "ql", "sh"])
+    dbar = pd.DataFrame(DBAR_sem_none, columns=["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pl", "ql", "sh"])
     dbar = dbar.fillna(0).astype({
-        "barra": int, "tipo": int, "v": float, "a": float,
+        "barra": int, "tipo": int, "v": float, "teta": float,
         "pg": float, "qg": float, "qn": float, "qm": float,
         "bc": int, "pl": float, "ql": float, "sh": float
     })
@@ -203,7 +203,7 @@ def imprime_info_dbar(dbar):
     print("-" * 120)
 
     for _, row in dbar.iterrows():
-        print(f"{row['barra']:^5} | {row['tipo']:^5} | {row['v']:^10.4f} | {row['a']:^8.2f} | "
+        print(f"{row['barra']:^5} | {row['tipo']:^5} | {row['v']:^10.4f} | {row['teta']:^8.2f} | "
               f"{row['pg']:^8.2f} | {row['qg']:^8.2f} | {row['qn']:^8.2f} | {row['qm']:^8.2f} | "
               f"{row['pl']:^8.2f} | {row['ql']:^8.2f} | {row['sh']:^8.2f}")
 
@@ -219,6 +219,6 @@ def imprime_info_dlin(dlin):
 
 
 # Teste na leitura
-#dbar, dlin = read_pwf('p2_ex1.pwf')
+# dbar, dlin = read_pwf('p2_ex1.pwf')
 # imprime_info_dbar(dbar)
 # imprime_info_dlin(dlin)
