@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import cmath
 from leitura_pwf import *
-
+from ctap import *
 
 
 # === Funções para transformar os dados de Entrada em pu e ângulo em radianos === #
@@ -100,12 +100,15 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
     return Jac
 
 # === Função para cálculo de Fluxo de Potência === #
-def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_start=True):
+def calcula_fluxo_de_potencia_newt(dbar, dlin, ybarra, bcs, tol=1e-4, iter_max=25, flat_start=True):
     nbar = len(dbar)
     tipo = dbar.tipo.values
     pg, pd = dbar.pg.values, dbar.pd.values
     qg, qd = dbar.qg.values, dbar.qd.values
     pesp, qesp = pg - pd, qg - qd
+    vref = dbar.v.values.copy()
+    barras_ctrl = bcs[2,:]
+    taps = bcs[5,:]
 
     # Variáveis de estado
     v = dbar.v.values.copy()
@@ -127,15 +130,23 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_sta
             print(f"Convergência atingida em {it} iterações. Erro máximo: {erro_max:.4e}")
             return v, teta, pcalc, qcalc, True
 
-        Jac = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo)
+        #Jac = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo)
+        Jac = calcula_jacobiano_com_tap(v, teta, pcalc, qcalc, ybarra, tipo, barras_ctrl, taps, dlin)
+        #print(f"Matriz jacobiana {Jac}")
         try:
             delta_sol = np.linalg.solve(Jac, delta_y)
         except np.linalg.LinAlgError:
+            det = np.linalg.cond(Jac)
+            print(f"Condicionamento da matriz jacobiana: {det}")
             print("Erro: Matriz Jacobiana singular.")
             break
 
         teta += delta_sol[:nbar]
         v += delta_sol[nbar:]
+
+        alteracoes_tap = verifica_tap(bcs, v, vref)
+        if alteracoes_tap:
+            ybarra_atualizada = atualizar_Ybarra(ybarra, dlin, alteracoes_tap)
 
     print("Fluxo de potência não convergiu!")
     return v, teta, pcalc, qcalc, False
@@ -222,7 +233,8 @@ def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
 # === Configuração Inicial === #
 #arquivo_pwf = 'ieee14.pwf'
 #arquivo_pwf = 'p2_ex1.pwf'
-arquivo_pwf = 'teste.pwf'
+#arquivo_pwf = 'teste.pwf'
+arquivo_pwf = 'IEEE14_CASO4.pwf'
 pbase = 100.
 tol = 0.0000003
 iter_max = 25
@@ -230,19 +242,19 @@ iter_max = 25
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
 
-dbar_dataframe = converter_dbar(dbar)
 dlin_dataframe = converter_dlin(dlin)
+dbar_dataframe = converter_dbar(dbar)
+bcs = barras_controladas_tap(dlin_dataframe)
 
 #print_dbar_info(DBAR)
 #print_dlin_info(DLIN)
 
 dbar = inicializa_barras(dbar_dataframe, pbase)
 dlin = inicializa_linhas(dlin_dataframe, pbase)
-
 ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
 
 # === Execução Principal === #
-v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, ybarra, tol, iter_max, flat_start=False)
+v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, dlin, ybarra, bcs, tol, iter_max, flat_start=True)
 
 # === Saídas para simples de verificação === #
 imprime_balanco_potencia(dbar, pcalc, pbase)

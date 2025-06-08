@@ -112,7 +112,7 @@ def read_pwf(filename):
                     continue
                 
                 # Initialize with None for all fields
-                dlin_row = [0, 0, None, None, None, None, None]
+                dlin_row = [0, 0, None, None, None, None, None, None, None, None]
                 
                 # From bus (columns 1-5)
                 from_str = line[0:5].strip()
@@ -153,11 +153,31 @@ def read_pwf(filename):
                 else:
                     dlin_row[5] = 1.0
                 
+                # Tap min (columns 44-48)
+                tapmin_str = line[44:48].strip()
+                if tapmin_str:
+                    dlin_row[6] = float(tapmin_str)
+                else:
+                    dlin_row[6] = 1.0
+
+                # Tap max (columns 49-53)
+                tapmax_str = line[49:53].strip()
+                if tapmax_str:
+                    dlin_row[7] = float(tapmax_str)
+                else:
+                    dlin_row[7] = 1.0
+                
                 # Phase shift (columns 54-58)
                 if len(line) > 53:
                     phase_str = line[53:58].strip()
                     if phase_str:
-                        dlin_row[6] = float(phase_str) / 180 * math.pi
+                        dlin_row[8] = float(phase_str) / 180 * math.pi
+                
+                # Barra Controlada (columns 59-64)
+                bc_str = line[59:64].strip()
+                if bc_str:
+                    dlin_row[9] = int(bc_str)
+                    #dbar_row[] = 3 #alterando o tipo da barra controlada por tap para PQV
                 
                 DLIN.append(dlin_row)
                 
@@ -222,12 +242,13 @@ def converter_dbar(DBAR):
     return dbar
 
 def converter_dlin(DLIN):
-    colunas = ["de", "para", "r", "x", "bsh", "tap", "defasagem"]
+    colunas = ["de", "para", "r", "x", "bsh", "tap", "tmin", "tmax", "defasagem","bc"]
     DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
     dlin = pd.DataFrame(DLIN_sem_none, columns=colunas)
     dlin = dlin.astype({
         "de": int, "para": int, "r": float, "x": float,
-        "bsh": float, "tap": float, "defasagem": float,
+        "bsh": float, "tap": float, "tmin": float, "tmax":float,
+        "defasagem": float, "bc":int,
     })
     return dlin
 
