@@ -91,9 +91,9 @@ def read_pwf(filename):
                     dbar_row[10] = float(ql_str)
                 
                 # Shunt component SH (columns 69-73)
-                sh_str = line[68:73].strip()
-                if sh_str:
-                    dbar_row[11] = float(sh_str)
+                shunt_str = line[68:73].strip()
+                if shunt_str:
+                    dbar_row[11] = float(shunt_str)
                 
                 DBAR.append(dbar_row)
                 
@@ -179,11 +179,11 @@ def read_pwf(filename):
     
     # Conversão para DataFrame diretamente no final
     DBAR_sem_none = [[0 if val is None else val for val in row] for row in DBAR]
-    dbar = pd.DataFrame(DBAR_sem_none, columns=["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pl", "ql", "sh"])
+    dbar = pd.DataFrame(DBAR_sem_none, columns=["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pl", "ql", "shunt"])
     dbar = dbar.fillna(0).astype({
         "barra": int, "tipo": int, "v": float, "teta": float,
         "pg": float, "qg": float, "qn": float, "qm": float,
-        "bc": int, "pl": float, "ql": float, "sh": float
+        "bc": int, "pl": float, "ql": float, "shunt": float
     })
 
     DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
@@ -205,7 +205,7 @@ def imprime_info_dbar(dbar):
     for _, row in dbar.iterrows():
         print(f"{row['barra']:^5} | {row['tipo']:^5} | {row['v']:^10.4f} | {row['teta']:^8.2f} | "
               f"{row['pg']:^8.2f} | {row['qg']:^8.2f} | {row['qn']:^8.2f} | {row['qm']:^8.2f} | "
-              f"{row['pl']:^8.2f} | {row['ql']:^8.2f} | {row['sh']:^8.2f}")
+              f"{row['pl']:^8.2f} | {row['ql']:^8.2f} | {row['shunt']:^8.2f}")
 
 def imprime_info_dlin(dlin):
     print(f"Number of branches: {len(dlin)}")
@@ -219,6 +219,6 @@ def imprime_info_dlin(dlin):
 
 
 # Teste na leitura
-# dbar, dlin = read_pwf('p2_ex1.pwf')
-# imprime_info_dbar(dbar)
-# imprime_info_dlin(dlin)
+dbar, dlin = read_pwf('p2_ex1.pwf')
+imprime_info_dbar(dbar)
+imprime_info_dlin(dlin)
