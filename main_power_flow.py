@@ -40,7 +40,7 @@ def calcula_ybarra(nbus, dlin, shunt):
     return Y
 
 # === Funções auxiliares para cálculo de Fluxo de Potência === #
-def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp):
+def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM):
 
     # Calcula o vetor de tensões na forma retangular
     x, y = np.cos(teta) * v, np.sin(teta) * v
@@ -64,9 +64,17 @@ def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp):
     delta_q[tipo == 1] = 0  # barra PV
 
     delta_y = np.concatenate([delta_p, delta_q])
+
+    if CREM:
+        delta_v_completo = dbar.v.values - v
+        delta_v = delta_v_completo[tipo == 4]
+
+        delta_y = np.hstack([delta_y, delta_v])
+
+
     return delta_y, pcalc, qcalc
 
-def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
+def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False):
     nbar = len(v)
     g = np.real(ybarra)
     b = np.imag(ybarra)
@@ -97,13 +105,48 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
                 L[k, m] = v[k]*(g[k, m]*np.sin(delta) - b[k, m]*np.cos(delta))
 
     Jac = np.block([[H, N], [M, L]])
+        
+    if CREM:
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
+
+        # Cria linhas adicionais
+        M_CREM_linha = np.zeros((nbar_tipo3, nbar))
+        L_CREM_linha = np.zeros((nbar_tipo3, nbar))
+
+        for k in range(nbar_tipo3):
+            barra_controlada = bc[idx_tipo3[k]]       
+            idx_coluna = np.where(barra == barra_controlada)[0][0] 
+            L_CREM_linha[k, idx_coluna] = 1
+
+        linha_adicional_CREM = np.hstack([M_CREM_linha, L_CREM_linha])
+
+        # Cria colunas adicionais
+        N_CREM_coluna = np.zeros((nbar, nbar_tipo3))
+        L_CREM_coluna = np.zeros((nbar+1, nbar_tipo3))
+
+        for k in range(nbar_tipo3):
+            barra_controladora = barra[idx_tipo3[k]]                 
+            idx_linha = np.where(barra == barra_controladora)[0][0]
+            L_CREM_coluna[idx_linha, k] = -1
+        
+        coluna_adicional_CREM = np.vstack([N_CREM_coluna, L_CREM_coluna])     
+        
+        Jac_linhas_adicionais = np.vstack([Jac, linha_adicional_CREM])
+        Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_CREM])
+        Jac = Jac_colunas_adicionais
+
     return Jac
 
 # === Função para cálculo de Fluxo de Potência === #
-def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_start=True, QLIM=False):
+def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_start=True, QLIM=False, CREM=False):
     nbar = len(dbar)
+    
+    barra = dbar.barra.values
     tipo_original = dbar.tipo.values
     tipo = tipo_original.copy()
+    bc = dbar.bc.values
+
     pg, pl = dbar.pg.values, dbar.pl.values
     qg, ql = dbar.qg.values, dbar.ql.values
     qmin, qmax = dbar.qn.values, dbar.qm.values
@@ -119,9 +162,20 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_sta
         teta[tipo == 0] = 0
         v[tipo == 0] = 1.0
 
+    # A barra PV que controla passa a ser P (tipo 3) e barra PQ controlada passa a ser PQV (tipo 4)
+    if CREM:
+        # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
+        tipo[(tipo == 1) & (bc != 0) & (bc != barra)] = 3
+
+        # Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
+        tipo[np.isin(barra, bc[(tipo == 3)])] = 4
+
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
+
     # Iterações
     for it in range(iter_max):
-        delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp)
+        delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
 
         if QLIM and np.any(((qcalc > dbar.qm.values) | (qcalc < dbar.qn.values)) & (tipo == 1)):
             violou_sup = qcalc > dbar.qm.values
@@ -137,7 +191,7 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_sta
             qesp = np.where(violou_sup, dbar.qm.values, qesp)
             qesp = np.where(violou_inf, dbar.qn.values, qesp)
 
-            delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp)
+            delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
         
 
         erro_max = np.max(np.abs(delta_residuos))
@@ -145,21 +199,26 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_sta
 
         # Verifica se o erro máximo é menor que a tolerância
         if erro_max < tol:
-            print(f"Convergência atingida em {it} iterações. Erro máximo: {erro_max:.4e}")
+            print(f"Convergência atingida em {it} iterações.")
             return v, teta, pcalc, qcalc, True
 
 
-        jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo)
+        jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM)
         try:
-            delta_teta_v = np.linalg.solve(jacobiano, delta_residuos)
+            delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
         except np.linalg.LinAlgError:
             print("Erro: Matriz Jacobiana singular.")
             break
 
-        teta += delta_teta_v[:nbar]
-        v += delta_teta_v[nbar:]
+        teta += delta_var_estado[:nbar]
+        v += delta_var_estado[nbar:nbar*2]
+
+        if CREM:
+            qesp[idx_tipo3] += delta_var_estado[nbar*2:nbar*2+nbar_tipo3]
+
 
         # Se o QLIM estiver ativado e houver alteração no Q calculado, verifica se a barra pode voltar a ser PV ou não
+        # Essa lógica esta incorreta pq a barra foi alterada para tipo 0 lá em cima
         if QLIM and np.any(((qcalc > dbar.qm.values) | (qcalc < dbar.qn.values)) & (tipo == 1)):
             cond = (tipo == 0) & (
                 ((v < dbar.v.values) & (qcalc == qmin)) |
@@ -253,7 +312,7 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100):
 # === Configuração Inicial === #
 #arquivo_pwf = 'ieee14.pwf'
 #arquivo_pwf = 'p2_ex1.pwf'
-arquivo_pwf = 'exemplo_QLIM.pwf'
+arquivo_pwf = 'exemplo_CREM.pwf'
 pbase = 100.
 tol = 1e-10	
 iter_max = 25
@@ -270,7 +329,7 @@ ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, ybarra, tol, iter_max, flat_start=True, QLIM=True
+    dbar, ybarra, tol, iter_max, flat_start=True, QLIM=False, CREM=True
 )
 
 # === Saídas para simples de verificação === #
