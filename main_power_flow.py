@@ -108,7 +108,7 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False
 
         # Cria colunas adicionais
         N_CREM_coluna = np.zeros((nbar, nbar_tipo3))
-        L_CREM_coluna = np.zeros((nbar+1, nbar_tipo3))
+        L_CREM_coluna = np.zeros((nbar, nbar_tipo3))
 
         for k in range(nbar_tipo3):
             barra_controladora = barra[idx_tipo3[k]]                 
@@ -117,8 +117,12 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False
         
         coluna_adicional_CREM = np.vstack([N_CREM_coluna, L_CREM_coluna])     
         
+        # Cria matriz adicional para CREM (derivadas das tensões em relação à potência reativa gerada ~ 0)
+        matriz_adicional_CREM = np.zeros((nbar_tipo3, nbar_tipo3))
+
         Jac_linhas_adicionais = np.vstack([Jac, linha_adicional_CREM])
-        Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_CREM])
+        coluna_adicional_com_matriz_adicional = np.vstack([coluna_adicional_CREM, matriz_adicional_CREM])
+        Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_com_matriz_adicional])
         Jac = Jac_colunas_adicionais
 
     return Jac
@@ -127,23 +131,25 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False
 # === Função para cálculo de Fluxo de Potência === #
 def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start=True, QLIM=False, CREM=False):
     
-    ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
-
+    # Variáveis gerais
     nbar = len(dbar)
-    
     barra = dbar.barra.values
-    tipo_original = dbar.tipo.values
-    tipo = tipo_original.copy()
     bc = dbar.bc.values
+    shunt = dbar.shunt.values
+    tipo = dbar.tipo.values.copy()
 
+    # Variáveis de estado
+    teta = dbar.teta.values.copy()
+    v = dbar.v.values.copy()
+    
+    # Variáveis de potência
     pg, pl = dbar.pg.values, dbar.pl.values
     qg, ql = dbar.qg.values, dbar.ql.values
     qmin, qmax = dbar.qn.values, dbar.qm.values
     pesp, qesp = pg - pl, qg - ql
 
-    # Variáveis de estado
-    teta = dbar.teta.values.copy()
-    v = dbar.v.values.copy()
+    # Cálculo da matriz Ybarra
+    ybarra = calcula_ybarra(nbar, dlin, shunt)
 
     # Zera ângulos das baras PV e PQ e define como 1,0 pu tensões de barras PQ
     if flat_start:
@@ -300,9 +306,8 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100):
 
 
 # === Configuração Inicial === #
-#arquivo_pwf = 'ieee14.pwf'
-#arquivo_pwf = 'p2_ex1.pwf'
-arquivo_pwf = 'exemplo_CREM.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso1.pwf'
+# arquivo_pwf = 'exemplo_CREM.pwf'
 pbase = 100.
 tol = 1e-10	
 iter_max = 25
