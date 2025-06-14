@@ -151,12 +151,6 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
     # Cálculo da matriz Ybarra
     ybarra = calcula_ybarra(nbar, dlin, shunt)
 
-    # Zera ângulos das baras PV e PQ e define como 1,0 pu tensões de barras PQ
-    if flat_start:
-        teta[tipo == 1] = 0
-        teta[tipo == 0] = 0
-        v[tipo == 0] = 1.0
-
     # A barra PV que controla passa a ser P (tipo 3) e barra PQ controlada passa a ser PQV (tipo 4)
     if CREM:
         # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
@@ -167,6 +161,14 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
         idx_tipo3 = np.where(tipo == 3)[0]
         nbar_tipo3 = idx_tipo3.size
+
+
+    # Zera ângulos das baras PV e PQ e define como 1,0 pu tensões de barras PQ
+    if flat_start:
+        teta[tipo == 1] = 0
+        teta[tipo == 0] = 0
+        v[tipo == 0] = 1.0
+
 
     # Iterações
     for it in range(iter_max):
@@ -228,22 +230,26 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
 
 # === Função para impressão de resultados === #
-def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100):
+def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100, casa_decimal=6):
     tipo_map = {0: "PQ", 1: "PV", 2: "Slack"}
     dados = {
         "Barra": dbar.index + 1,
         "Tipo": [tipo_map[t] for t in dbar.tipo],
-        "V (pu)": np.round(v, 6),
-        "Teta (graus)": np.round(np.rad2deg(teta), 6),
-        "P Inj (MW)": np.round(pcalc * pbase, 6),
-        "Q Inj (MVAr)": np.round(qcalc * pbase, 6)
+        "V (pu)": np.round(v, casa_decimal),
+        "Teta (graus)": np.round(np.rad2deg(teta), casa_decimal),
+        "P Inj (MW)": np.round(pcalc * pbase, casa_decimal),
+        "Pg (MW)": np.round((pcalc + dbar.pl.values) * pbase, casa_decimal),
+        "Pl (MW)": np.round(dbar.pl.values * pbase, casa_decimal),
+        "Q Inj (MVAr)": np.round(qcalc * pbase, casa_decimal),
+        "Qg (MVAr)": np.round((qcalc + dbar.ql.values) * pbase, casa_decimal),
+        "Ql (MVAr)": np.round(dbar.ql.values * pbase, casa_decimal)
     }
 
     df = pd.DataFrame(dados)
     print("\n=== Resultados do Fluxo de Potência ===")
     print(df.to_string(index=False))
 
-def imprime_resultados_circuitos(dlin, v, teta, pbase=100):
+def imprime_resultados_circuitos(dlin, v, teta, pbase=100, casa_decimal=6):
     print("\n=== Fluxo de Potência nas Linhas (sentido DE → PARA) ===")
     linhas = []
 
@@ -272,20 +278,20 @@ def imprime_resultados_circuitos(dlin, v, teta, pbase=100):
         linhas.append({
             "DE": row.de,
             "PARA": row.para,
-            "Pkm (MW)": round(pkm, 6),
-            "Qkm (MVAr)": round(qkm, 6),
-            "R": round(r, 6),
-            "X": round(x, 6),
-            "Bsh": round(bsh, 6),
-            "TAP": round(tap, 6),
-            "Defasagem (rad)": round(defas, 6),
-            "Pmax (MW)": round(row.pkmax, 6) if "pkmax" in row else None
+            "Pkm (MW)": round(pkm, casa_decimal),
+            "Qkm (MVAr)": round(qkm, casa_decimal),
+            "R": round(r, casa_decimal),
+            "X": round(x, casa_decimal),
+            "Bsh": round(bsh, casa_decimal),
+            "TAP": round(tap, casa_decimal),
+            "Defasagem (rad)": round(defas, casa_decimal),
+            "Pmax (MW)": round(row.pkmax, casa_decimal) if "pkmax" in row else None
         })
 
     df_fluxo = pd.DataFrame(linhas)
     print(df_fluxo.to_string(index=False))
 
-def imprime_balanco_potencia(dbar, pcalc, pbase=100):
+def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
     tipo = dbar.tipo.values
 
     p_slack = pcalc[tipo==2].item() * pbase
@@ -300,16 +306,16 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100):
     perdas_ativas = p_slack + geracao - carga
 
     print("\n=== Balanço de Potência ===")
-    print(f"→ Carga Total      : {carga:,.6f} MW")
-    print(f"→ Geração Total    : {geracao + p_slack:,.6f} MW")
-    print(f"→ Perdas no Sistema: {perdas_ativas:,.6f} MW ")
+    print(f"→ Carga Total      : {carga:,.{casa_decimal}f} MW")
+    print(f"→ Geração Total    : {geracao + p_slack:,.{casa_decimal}f} MW")
+    print(f"→ Perdas no Sistema: {perdas_ativas:,.{casa_decimal}f} MW ")
 
 
 # === Configuração Inicial === #
 arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso1.pwf'
 # arquivo_pwf = 'exemplo_CREM.pwf'
 pbase = 100.
-tol = 1e-10	
+tol = 1e-8	
 iter_max = 25
 
 # === Dados de Entrada === #
@@ -320,10 +326,10 @@ dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True
+    dbar, dlin, tol, iter_max, flat_start=False, QLIM=False, CREM=True
 )
 
 # === Saídas para simples de verificação === #
-imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase)
-imprime_resultados_circuitos(dlin, v, teta, pbase)
-imprime_balanco_potencia(dbar, pcalc, pbase)
+imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
+imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
+imprime_balanco_potencia(dbar, pcalc, pbase, 3)
