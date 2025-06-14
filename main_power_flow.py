@@ -6,21 +6,7 @@ from leitura_pwf import *
 
 
 
-# === Funções para transformar os dados de Entrada em pu e ângulo em radianos === #
-def inicializa_barras(dbar, pbase=100):
-    dbar = dbar.copy()
-    dbar[["pg", "qg", "qn", "qm", "pl", "ql", "shunt"]] /= pbase
-    dbar["teta"] = np.deg2rad(dbar["teta"])
-    return dbar
-
-def inicializa_linhas(dlin, pbase=100):
-    dlin = dlin.copy()
-    dlin["r"] /= 100
-    dlin["x"] /= 100
-    dlin["bsh"] = (dlin["bsh"] / 2) / pbase
-    return dlin
-
-# === Função para cálculo da Ybarra === #
+# === Funções auxiliares para cálculo de Fluxo de Potência === #
 def calcula_ybarra(nbus, dlin, shunt):
     Y = np.zeros((nbus, nbus), dtype=complex)
     for _, row in dlin.iterrows():
@@ -39,7 +25,6 @@ def calcula_ybarra(nbus, dlin, shunt):
 
     return Y
 
-# === Funções auxiliares para cálculo de Fluxo de Potência === #
 def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM):
 
     # Calcula o vetor de tensões na forma retangular
@@ -138,8 +123,12 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False
 
     return Jac
 
+
 # === Função para cálculo de Fluxo de Potência === #
-def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_start=True, QLIM=False, CREM=False):
+def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start=True, QLIM=False, CREM=False):
+    
+    ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
+
     nbar = len(dbar)
     
     barra = dbar.barra.values
@@ -231,6 +220,7 @@ def calcula_fluxo_de_potencia_newt(dbar, ybarra, tol=1e-4, iter_max=25, flat_sta
     print("Fluxo de potência não convergiu!")
     return v, teta, pcalc, qcalc, False
 
+
 # === Função para impressão de resultados === #
 def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100):
     tipo_map = {0: "PQ", 1: "PV", 2: "Slack"}
@@ -247,7 +237,7 @@ def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100):
     print("\n=== Resultados do Fluxo de Potência ===")
     print(df.to_string(index=False))
 
-def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
+def imprime_resultados_circuitos(dlin, v, teta, pbase=100):
     print("\n=== Fluxo de Potência nas Linhas (sentido DE → PARA) ===")
     linhas = []
 
@@ -319,20 +309,16 @@ iter_max = 25
 
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
-imprime_info_dbar(dbar)
-imprime_info_dlin(dlin)
-
-dbar = inicializa_barras(dbar, pbase)
-dlin = inicializa_linhas(dlin, pbase)
-
-ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
+# imprime_info_dbar(dbar)
+# imprime_info_dlin(dlin)
+dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, ybarra, tol, iter_max, flat_start=True, QLIM=False, CREM=True
+    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True
 )
 
 # === Saídas para simples de verificação === #
 imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase)
-imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase)
+imprime_resultados_circuitos(dlin, v, teta, pbase)
 imprime_balanco_potencia(dbar, pcalc, pbase)
