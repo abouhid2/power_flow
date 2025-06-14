@@ -217,8 +217,22 @@ def imprime_info_dlin(dlin):
     for _, row in dlin.iterrows():
         print(f"{row['de']:^5} | {row['para']:^5} | {row['r']:^8.4f} | {row['x']:^8.4f} | {row['bsh']:^10.4f} | {row['tap']:^8.4f}")
 
+# === Função para transformar os dados de Entrada em pu e ângulo em radianos === #
+def inicializa_dbar_dlin(dbar, dlin, pbase=100):
+    dbar = dbar.copy()
+    dbar[["pg", "qg", "qn", "qm", "pl", "ql", "shunt"]] /= pbase
+    dbar["teta"] = np.deg2rad(dbar["teta"])
+
+    dlin = dlin.copy()
+    dlin["r"] /= 100
+    dlin["x"] /= 100
+    dlin["bsh"] = (dlin["bsh"] / 2) / pbase
+    
+    return dbar, dlin
+
 
 # Teste na leitura
-dbar, dlin = read_pwf('p2_ex1.pwf')
-imprime_info_dbar(dbar)
-imprime_info_dlin(dlin)
+# dbar, dlin = read_pwf('p2_ex1.pwf')
+# imprime_info_dbar(dbar)
+# imprime_info_dlin(dlin)
+# dabr, dlin = inicializa_dbar_dlin(dbar, dlin, 100)
