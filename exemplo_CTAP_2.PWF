@@ -1,0 +1,27 @@
+(
+( Gravacao de .PWF - CART
+( Versao do Anarede: 12.00.01
+( Data e Hora da Gravacao: 15/06/2025 - 18:51:23                                                           
+(
+TITU
+IEEE 14 Bus Test Case - Winter 1962                                             
+DOPC IMPR
+(Op) E (Op) E (Op) E (Op) E (Op) E (Op) E (Op) E (Op) E (Op) E (Op) E
+CREM L CTAP L NEWT L RCVG L RMON L NOVO L MFCT L PMIN L INMN L UNPG L
+99999
+DBAR
+(Num)OETGb(   nome   )Gl( V)( A)( Pg)( Qg)( Qn)( Qm)(Bc  )( Pl)( Ql)( Sh)Are(Vf)M(1)(2)(3)(4)(5)(6)(7)(8)(9)(10
+    1 L2  Barra-01--HV  1000  0. 22.6 -7.3-999999999                       11000                                   
+    5 L   Barra-05--HV  1000 -3.                            7.6  1.6       11000                                   
+    6 L1  Barra-06--LV  1000-5.2   0.15.13  -6.  24.       11.2  7.5       11000                                   
+   11 L   Barra-11--LV   993-5.5                            3.5  1.8       11000                                   
+   12 L   Barra-12--LV  1000-5.2                                           11000                                   
+99999
+DLIN
+(De )d O d(Pa )NcEPM( R% )( X% )(Mvar)(Tap)(Tmn)(Tmx)(Phs)(Bc  )(Cn)(Ce)Ns(Cq)(1)(2)(3)(4)(5)(6)(7)(8)(9)(10 (U) Uop
+    1         5 1    5.40322.304  4.92                          99999999  9999
+    5         6 1         25.202      1.014   .8  1.2          599999999339999                                 1   1
+    6        11 1    9.498 19.89                                99999999  9999
+   12         6 1     .023  .572  .009                          99999999  9999
+99999
+FIM

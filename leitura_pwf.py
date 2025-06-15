@@ -207,10 +207,11 @@ def read_pwf(filename):
     })
 
     DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
-    dlin = pd.DataFrame(DLIN_sem_none, columns=["de", "para", "r", "x", "bsh", "tap", "defasagem"])
+    dlin = pd.DataFrame(DLIN_sem_none, columns=["de", "para", "r", "x", "bsh", "tap", "tap_min", "tap_max", "defasagem", "bc_tr"])
     dlin = dlin.fillna(0).astype({
         "de": int, "para": int, "r": float, "x": float,
-        "bsh": float, "tap": float, "defasagem": float
+        "bsh": float, "tap": float, "tap_min": float, "tap_max": float,
+        "defasagem": float, "bc_tr": int
     })
 
     return dbar, dlin
@@ -230,12 +231,13 @@ def imprime_info_dbar(dbar):
 def imprime_info_dlin(dlin):
     print(f"Number of branches: {len(dlin)}")
     print("\nBranch Information:")
-    print("=" * 80)
-    print(f"{'From':^5} | {'To':^5} | {'R (%)':^8} | {'X (%)':^8} | {'B (Mvar)':^10} | {'Tap':^8}")
-    print("-" * 80)
+    print("=" * 120)
+    print(f"{'From':^5} | {'To':^5} | {'R (%)':^8} | {'X (%)':^8} | {'B (Mvar)':^10} | {'Tap':^8} | {'Tap min':^8} | {'Tap max':^8} | {'Def':^8} | {'Bc':^8}")
+    print("-" * 120)
 
     for _, row in dlin.iterrows():
-        print(f"{row['de']:^5} | {row['para']:^5} | {row['r']:^8.4f} | {row['x']:^8.4f} | {row['bsh']:^10.4f} | {row['tap']:^8.4f}")
+        print(f"{row['de']:^5} | {row['para']:^5} | {row['r']:^8.4f} | {row['x']:^8.4f} | {row['bsh']:^10.4f} | {row['tap']:^8.4f} |"
+              f"{row['tap_min']:^8.4f} | {row['tap_max']:^8.4f} | {row['defasagem']:^8.4f} | {row['bc_tr']:^5} ")
 
 # === Função para transformar os dados de Entrada em pu e ângulo em radianos === #
 def inicializa_dbar_dlin(dbar, dlin, pbase=100):
