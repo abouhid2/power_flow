@@ -1,0 +1,21 @@
+TITU
+Parte 02 - Exemplo 1
+DCTE
+(Mn) ( Val) (Mn) ( Val) (Mn) ( Val) (Mn) ( Val) (Mn) ( Val) (Mn) ( Val)
+TEPA 0.01
+TEPR 0.01
+99999
+DBAR
+(Num)OETGb(   nome   )Gl( V)( A)( Pg)( Qg)( Qn)( Qm)(Bc  )( Pl)( Ql)( Sh)Are(Vf)
+    1  2  Barra-01--HVA 10000.                                             1
+    2  1  Barra-02--HVA 10000.  -20.       -3.   2.8                       1
+99999
+DLIN
+(De )d O d(Pa )NcEP ( R% )( X% )(Mvar)(Tap)(Tmn)(Tmx)(Phs)(Bc  )(Cn)(Ce)Ns
+    1         2 1      20.  100.    4.
+99999
+DGLT
+(G (Vmn) (Vmx) (Vmne (Vmxe
+ A 0.900 1.050 0.900 1.050
+99999
+FIM

@@ -3,24 +3,10 @@ import numpy as np
 import pandas as pd
 import cmath
 from leitura_pwf import *
-from ctap import *
 
 
-# === Funções para transformar os dados de Entrada em pu e ângulo em radianos === #
-def inicializa_barras(dbar, pbase=100):
-    dbar = dbar.copy()
-    dbar[["pg", "qg", "qn", "qm", "pd", "qd", "shunt"]] /= pbase
-    dbar["teta"] = np.deg2rad(dbar["teta"])
-    return dbar
 
-def inicializa_linhas(dlin, pbase=100):
-    dlin = dlin.copy()
-    dlin["r"] /= 100
-    dlin["x"] /= 100
-    dlin["bsh"] = (dlin["bsh"] / 2) / pbase
-    return dlin
-
-# === Função para cálculo da Ybarra === #
+# === Funções auxiliares para cálculo de Fluxo de Potência === #
 def calcula_ybarra(nbus, dlin, shunt):
     Y = np.zeros((nbus, nbus), dtype=complex)
     for _, row in dlin.iterrows():
@@ -39,8 +25,7 @@ def calcula_ybarra(nbus, dlin, shunt):
 
     return Y
 
-# === Funções auxiliares para cálculo de Fluxo de Potência === #
-def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp):
+def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM):
 
     # Calcula o vetor de tensões na forma retangular
     x, y = np.cos(teta) * v, np.sin(teta) * v
@@ -64,9 +49,17 @@ def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp):
     delta_q[tipo == 1] = 0  # barra PV
 
     delta_y = np.concatenate([delta_p, delta_q])
+
+    if CREM:
+        delta_v_completo = dbar.v.values - v
+        delta_v = delta_v_completo[tipo == 4]
+
+        delta_y = np.hstack([delta_y, delta_v])
+
+
     return delta_y, pcalc, qcalc
 
-def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
+def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM=False):
     nbar = len(v)
     g = np.real(ybarra)
     b = np.imag(ybarra)
@@ -97,96 +90,168 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo):
                 L[k, m] = v[k]*(g[k, m]*np.sin(delta) - b[k, m]*np.cos(delta))
 
     Jac = np.block([[H, N], [M, L]])
+        
+    if CREM:
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
+
+        # Cria linhas adicionais
+        M_CREM_linha = np.zeros((nbar_tipo3, nbar))
+        L_CREM_linha = np.zeros((nbar_tipo3, nbar))
+
+        for k in range(nbar_tipo3):
+            barra_controlada = bc[idx_tipo3[k]]       
+            idx_coluna = np.where(barra == barra_controlada)[0][0] 
+            L_CREM_linha[k, idx_coluna] = 1
+
+        linha_adicional_CREM = np.hstack([M_CREM_linha, L_CREM_linha])
+
+        # Cria colunas adicionais
+        N_CREM_coluna = np.zeros((nbar, nbar_tipo3))
+        L_CREM_coluna = np.zeros((nbar, nbar_tipo3))
+
+        for k in range(nbar_tipo3):
+            barra_controladora = barra[idx_tipo3[k]]                 
+            idx_linha = np.where(barra == barra_controladora)[0][0]
+            L_CREM_coluna[idx_linha, k] = -1
+        
+        coluna_adicional_CREM = np.vstack([N_CREM_coluna, L_CREM_coluna])     
+        
+        # Cria matriz adicional para CREM (derivadas das tensões em relação à potência reativa gerada ~ 0)
+        matriz_adicional_CREM = np.zeros((nbar_tipo3, nbar_tipo3))
+
+        Jac_linhas_adicionais = np.vstack([Jac, linha_adicional_CREM])
+        coluna_adicional_com_matriz_adicional = np.vstack([coluna_adicional_CREM, matriz_adicional_CREM])
+        Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_com_matriz_adicional])
+        Jac = Jac_colunas_adicionais
+
     return Jac
 
+
 # === Função para cálculo de Fluxo de Potência === #
-def calcula_fluxo_de_potencia_newt(dbar, dlin, ybarra, bcs, tol=1e-4, iter_max=25, flat_start=True):
+def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start=True, QLIM=False, CREM=False):
+    
+    # Variáveis gerais
     nbar = len(dbar)
-    tipo = dbar.tipo.values
-    pg, pd = dbar.pg.values, dbar.pd.values
-    qg, qd = dbar.qg.values, dbar.qd.values
-    pesp, qesp = pg - pd, qg - qd
-    vref = dbar.v.values.copy()
-    barras_ctrl = bcs[2,:]
-    taps = bcs[5,:]
+    barra = dbar.barra.values
+    bc = dbar.bc.values
+    shunt = dbar.shunt.values
+    tipo = dbar.tipo.values.copy()
 
     # Variáveis de estado
-    v = dbar.v.values.copy()
     teta = dbar.teta.values.copy()
+    v = dbar.v.values.copy()
+    
+    # Variáveis de potência
+    pg, pl = dbar.pg.values, dbar.pl.values
+    qg, ql = dbar.qg.values, dbar.ql.values
+    qmin, qmax = dbar.qn.values, dbar.qm.values
+    pesp, qesp = pg - pl, qg - ql
 
-    # Zera ângulos das baras PQ e PV e define como 1,0 pu tensões de barras PQ
+    # Cálculo da matriz Ybarra
+    ybarra = calcula_ybarra(nbar, dlin, shunt)
+
+    # A barra PV que controla passa a ser P (tipo 3) e barra PQ controlada passa a ser PQV (tipo 4)
+    if CREM:
+        # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
+        tipo[(tipo == 1) & (bc != 0) & (bc != barra)] = 3
+
+        # Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
+        tipo[np.isin(barra, bc[(tipo == 3)])] = 4
+
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
+
+
+    # Zera ângulos das baras PV e PQ e define como 1,0 pu tensões de barras PQ
     if flat_start:
         teta[tipo == 1] = 0
         teta[tipo == 0] = 0
         v[tipo == 0] = 1.0
-    
+
+
     # Iterações
     for it in range(iter_max):
-        delta_y, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp)
-        erro_max = np.max(np.abs(delta_y))
+        delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+
+        if QLIM and np.any(((qcalc > dbar.qm.values) | (qcalc < dbar.qn.values)) & (tipo == 1)):
+            violou_sup = qcalc > dbar.qm.values
+            violou_inf = qcalc < dbar.qn.values
+            violou_limite = violou_sup | violou_inf
+
+            print(f"Iteração {it:>3}: Q calculado(s) além dos limites informados.")
+
+            # Atualizar tipo para 0 onde houve violação
+            tipo = np.where(violou_limite, 0, tipo)
+
+            # Corrigir qesp onde houver violação
+            qesp = np.where(violou_sup, dbar.qm.values, qesp)
+            qesp = np.where(violou_inf, dbar.qn.values, qesp)
+
+            delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+        
+
+        erro_max = np.max(np.abs(delta_residuos))
         print(f"Iteração {it:>3}: Erro máximo = {erro_max:.4e}")
 
+        # Verifica se o erro máximo é menor que a tolerância
         if erro_max < tol:
-            print(f"Convergência atingida em {it} iterações. Erro máximo: {erro_max:.4e}")
+            print(f"Convergência atingida em {it} iterações.")
             return v, teta, pcalc, qcalc, True
 
-        #Jac = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo)
-        Jac = calcula_jacobiano_com_tap(v, teta, pcalc, qcalc, ybarra, tipo, barras_ctrl, taps, dlin)
-        #print(f"Matriz jacobiana {Jac}")
+
+        jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM)
         try:
-            delta_sol = np.linalg.solve(Jac, delta_y)
+            delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
         except np.linalg.LinAlgError:
             det = np.linalg.cond(Jac)
             print(f"Condicionamento da matriz jacobiana: {det}")
             print("Erro: Matriz Jacobiana singular.")
             break
 
-        teta += delta_sol[:nbar]
-        v += delta_sol[nbar:]
+        teta += delta_var_estado[:nbar]
+        v += delta_var_estado[nbar:nbar*2]
 
-        alteracoes_tap = verifica_tap(bcs, v, vref)
-        if alteracoes_tap:
-            ybarra_atualizada = atualizar_Ybarra(ybarra, dlin, alteracoes_tap)
+        if CREM:
+            qesp[idx_tipo3] += delta_var_estado[nbar*2:nbar*2+nbar_tipo3]
+
+
+        # Se o QLIM estiver ativado e houver alteração no Q calculado, verifica se a barra pode voltar a ser PV ou não
+        # Essa lógica esta incorreta pq a barra foi alterada para tipo 0 lá em cima
+        if QLIM and np.any(((qcalc > dbar.qm.values) | (qcalc < dbar.qn.values)) & (tipo == 1)):
+            cond = (tipo == 0) & (
+                ((v < dbar.v.values) & (qcalc == qmin)) |
+                ((v > dbar.v.values) & (qcalc == qmax))
+            )
+            tipo[cond] = 1
+            v[cond] = dbar.v.values[cond]
+
 
     print("Fluxo de potência não convergiu!")
     return v, teta, pcalc, qcalc, False
 
+
 # === Função para impressão de resultados === #
-def imprime_balanco_potencia(dbar, pcalc, pbase=100):
-    tipo = dbar.tipo.values
-
-    p_slack = pcalc[tipo==2].item() * pbase
-
-    pliq = (dbar.pg.values - dbar.pd.values) * pbase
-    pliq[tipo == 2] = 0
-
-    carga = np.sum(np.abs(pliq[pliq < 0]))
-    geracao = np.sum(np.abs(pliq[pliq > 0]))
-  
-    # Perdas = geração - carga (baseado nas potências líquidas injetadas)
-    perdas_ativas = p_slack + geracao - carga
-
-    print("\n=== Balanço de Potência ===")
-    print(f"→ Carga Total      : {carga:,.6f} MW")
-    print(f"→ Geração Total    : {geracao + p_slack:,.6f} MW")
-    print(f"→ Perdas no Sistema: {perdas_ativas:,.6f} MW ")
-
-def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100):
+def imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase=100, casa_decimal=6):
     tipo_map = {0: "PQ", 1: "PV", 2: "Slack"}
     dados = {
         "Barra": dbar.index + 1,
         "Tipo": [tipo_map[t] for t in dbar.tipo],
-        "V (pu)": np.round(v, 6),
-        "Teta (graus)": np.round(np.rad2deg(teta), 6),
-        "P Inj (MW)": np.round(pcalc * pbase, 6),
-        "Q Inj (MVAr)": np.round(qcalc * pbase, 6)
+        "V (pu)": np.round(v, casa_decimal),
+        "Teta (graus)": np.round(np.rad2deg(teta), casa_decimal),
+        "P Inj (MW)": np.round(pcalc * pbase, casa_decimal),
+        "Pg (MW)": np.round((pcalc + dbar.pl.values) * pbase, casa_decimal),
+        "Pl (MW)": np.round(dbar.pl.values * pbase, casa_decimal),
+        "Q Inj (MVAr)": np.round(qcalc * pbase, casa_decimal),
+        "Qg (MVAr)": np.round((qcalc + dbar.ql.values) * pbase, casa_decimal),
+        "Ql (MVAr)": np.round(dbar.ql.values * pbase, casa_decimal)
     }
 
     df = pd.DataFrame(dados)
     print("\n=== Resultados do Fluxo de Potência ===")
     print(df.to_string(index=False))
 
-def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
+def imprime_resultados_circuitos(dlin, v, teta, pbase=100, casa_decimal=6):
     print("\n=== Fluxo de Potência nas Linhas (sentido DE → PARA) ===")
     linhas = []
 
@@ -215,48 +280,58 @@ def imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase=100):
         linhas.append({
             "DE": row.de,
             "PARA": row.para,
-            "Pkm (MW)": round(pkm, 6),
-            "Qkm (MVAr)": round(qkm, 6),
-            "R": round(r, 6),
-            "X": round(x, 6),
-            "Bsh": round(bsh, 6),
-            "TAP": round(tap, 6),
-            "Defasagem (rad)": round(defas, 6),
-            "Pmax (MW)": round(row.pkmax, 6) if "pkmax" in row else None
+            "Pkm (MW)": round(pkm, casa_decimal),
+            "Qkm (MVAr)": round(qkm, casa_decimal),
+            "R": round(r, casa_decimal),
+            "X": round(x, casa_decimal),
+            "Bsh": round(bsh, casa_decimal),
+            "TAP": round(tap, casa_decimal),
+            "Defasagem (rad)": round(defas, casa_decimal),
+            "Pmax (MW)": round(row.pkmax, casa_decimal) if "pkmax" in row else None
         })
 
     df_fluxo = pd.DataFrame(linhas)
     print(df_fluxo.to_string(index=False))
 
+def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
+    tipo = dbar.tipo.values
+
+    p_slack = pcalc[tipo==2].item() * pbase
+
+    pliq = (dbar.pg.values - dbar.pl.values) * pbase
+    pliq[tipo == 2] = 0
+
+    carga = np.sum(np.abs(pliq[pliq < 0]))
+    geracao = np.sum(np.abs(pliq[pliq > 0]))
+  
+    # Perdas = geração - carga (baseado nas potências líquidas injetadas)
+    perdas_ativas = p_slack + geracao - carga
+
+    print("\n=== Balanço de Potência ===")
+    print(f"→ Carga Total      : {carga:,.{casa_decimal}f} MW")
+    print(f"→ Geração Total    : {geracao + p_slack:,.{casa_decimal}f} MW")
+    print(f"→ Perdas no Sistema: {perdas_ativas:,.{casa_decimal}f} MW ")
 
 
 # === Configuração Inicial === #
-#arquivo_pwf = 'ieee14.pwf'
-#arquivo_pwf = 'p2_ex1.pwf'
-#arquivo_pwf = 'teste.pwf'
-arquivo_pwf = 'IEEE14_CASO4.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso1.pwf'
+# arquivo_pwf = 'exemplo_CREM.pwf'
 pbase = 100.
-tol = 0.0000003
+tol = 1e-8	
 iter_max = 25
 
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
-
-dlin_dataframe = converter_dlin(dlin)
-dbar_dataframe = converter_dbar(dbar)
-bcs = barras_controladas_tap(dlin_dataframe)
-
-#print_dbar_info(DBAR)
-#print_dlin_info(DLIN)
-
-dbar = inicializa_barras(dbar_dataframe, pbase)
-dlin = inicializa_linhas(dlin_dataframe, pbase)
-ybarra = calcula_ybarra(len(dbar), dlin, dbar.shunt.values)
+# imprime_info_dbar(dbar)
+# imprime_info_dlin(dlin)
+dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
-v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(dbar, dlin, ybarra, bcs, tol, iter_max, flat_start=True)
+v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
+    dbar, dlin, tol, iter_max, flat_start=False, QLIM=False, CREM=True
+)
 
 # === Saídas para simples de verificação === #
-imprime_balanco_potencia(dbar, pcalc, pbase)
-imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase)
-imprime_resultados_circuitos(dlin, v, teta, ybarra, pbase)
+imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
+imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
+imprime_balanco_potencia(dbar, pcalc, pbase, 3)

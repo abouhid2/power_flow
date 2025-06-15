@@ -31,14 +31,14 @@ def read_pwf(filename):
                 dbar_row = [0, 0, None, None, None, None, None, None, None, None, None, None]
                 
                 # Bus number (columns 1-5)
-                bus_str = line[0:5].strip()
-                if bus_str:
-                    dbar_row[0] = int(bus_str)
+                barra_str = line[0:5].strip()
+                if barra_str:
+                    dbar_row[0] = int(barra_str)
                 
                 # Type (column 8)
-                type_str = line[7:8].strip()
-                if type_str:
-                    dbar_row[1] = int(type_str)
+                tipo_str = line[7:8].strip()
+                if tipo_str:
+                    dbar_row[1] = int(tipo_str)
                 
                 # Voltage (columns 25-28)
                 voltage_str = line[24:28].strip()
@@ -47,9 +47,9 @@ def read_pwf(filename):
                     dbar_row[2] = float(voltage_str) / 1000.0
 
                 # Angle
-                a_str = line[28:32].strip()
-                if a_str:
-                    dbar_row[3] = float(a_str)   
+                teta_str = line[28:32].strip()
+                if teta_str:
+                    dbar_row[3] = float(teta_str)   
                 
                 # Active generation PG (columns 33-37)
                 pg_str = line[32:37].strip()
@@ -65,11 +65,15 @@ def read_pwf(filename):
                 qn_str = line[42:47].strip()
                 if qn_str:
                     dbar_row[6] = float(qn_str)
+                elif dbar_row[1] == 2:
+                    dbar_row[6] = -9999.0    
                 
                 # Maximum reactive generation QM (columns 48-52)
                 qm_str = line[47:52].strip()
                 if qm_str:
                     dbar_row[7] = float(qm_str)
+                elif dbar_row[1] == 2:
+                    dbar_row[7] = 99999.0
 
                 # Control Bus
                 bc_str = line[52:58].strip()
@@ -87,9 +91,9 @@ def read_pwf(filename):
                     dbar_row[10] = float(ql_str)
                 
                 # Shunt component SH (columns 69-73)
-                sh_str = line[68:73].strip()
-                if sh_str:
-                    dbar_row[11] = float(sh_str)
+                shunt_str = line[68:73].strip()
+                if shunt_str:
+                    dbar_row[11] = float(shunt_str)
                 
                 DBAR.append(dbar_row)
                 
@@ -188,80 +192,67 @@ def read_pwf(filename):
                     break
         
         line_index += 1
-    
-    return np.array(DBAR, dtype=object), np.array(DLIN, dtype=object)
 
-def print_dbar_info(dbar):
-    print(f"Number of buses: {len(DBAR)}")
+    #return np.array(DBAR, dtype=object), np.array(DLIN, dtype=object)
+
+    DBAR, DLIN = np.array(DBAR, dtype=object), np.array(DLIN, dtype=object)
+    
+    # Conversão para DataFrame diretamente no final
+    DBAR_sem_none = [[0 if val is None else val for val in row] for row in DBAR]
+    dbar = pd.DataFrame(DBAR_sem_none, columns=["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pl", "ql", "shunt"])
+    dbar = dbar.fillna(0).astype({
+        "barra": int, "tipo": int, "v": float, "teta": float,
+        "pg": float, "qg": float, "qn": float, "qm": float,
+        "bc": int, "pl": float, "ql": float, "shunt": float
+    })
+
+    DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
+    dlin = pd.DataFrame(DLIN_sem_none, columns=["de", "para", "r", "x", "bsh", "tap", "defasagem"])
+    dlin = dlin.fillna(0).astype({
+        "de": int, "para": int, "r": float, "x": float,
+        "bsh": float, "tap": float, "defasagem": float
+    })
+
+    return dbar, dlin
+
+def imprime_info_dbar(dbar):
+    print(f"Number of buses: {len(dbar)}")
     print("\nBus Information:")
-    print("=" * 100)
-    print(f"{'Bus':^5} | {'Type':^5} | {'Voltage':^10} | {'PG':^8} | {'QG':^8} | {'QN':^8} | {'QM':^8} | {'PL':^8} | {'QL':^8} | {'SH':^8}")
-    print("-" * 100)
-    
-    for row in dbar:
-        bus_num = int(row[0])
-        bus_type = int(row[1])
-        voltage = row[2] if row[2] is not None else "None"
-        pg = row[4] if row[4] is not None else "None"
-        qg = row[5] if row[5] is not None else "None"
-        qn = row[6] if row[6] is not None else "None"
-        qm = row[7] if row[7] is not None else "None"
-        pl = row[8] if row[8] is not None else "None"
-        ql = row[9] if row[9] is not None else "None"
-        sh = row[10] if row[10] is not None else "None"
-        
-        print(f"{bus_num:^5} | {bus_type:^5} | {voltage:^10} | {pg:^8} | {qg:^8} | {qn:^8} | {qm:^8} | {pl:^8} | {ql:^8} | {sh:^8}")
+    print("=" * 120)
+    print(f"{'Bus':^5} | {'Type':^5} | {'Voltage':^10} | {'Angle':^8} | {'PG':^8} | {'QG':^8} | {'QN':^8} | {'QM':^8} | {'PL':^8} | {'QL':^8} | {'SH':^8}")
+    print("-" * 120)
 
-def print_dlin_info(dlin):
-    print(f"Number of branches: {len(DLIN)}")
+    for _, row in dbar.iterrows():
+        print(f"{row['barra']:^5} | {row['tipo']:^5} | {row['v']:^10.4f} | {row['teta']:^8.2f} | "
+              f"{row['pg']:^8.2f} | {row['qg']:^8.2f} | {row['qn']:^8.2f} | {row['qm']:^8.2f} | "
+              f"{row['pl']:^8.2f} | {row['ql']:^8.2f} | {row['shunt']:^8.2f}")
+
+def imprime_info_dlin(dlin):
+    print(f"Number of branches: {len(dlin)}")
     print("\nBranch Information:")
     print("=" * 80)
     print(f"{'From':^5} | {'To':^5} | {'R (%)':^8} | {'X (%)':^8} | {'B (Mvar)':^10} | {'Tap':^8}")
     print("-" * 80)
+
+    for _, row in dlin.iterrows():
+        print(f"{row['de']:^5} | {row['para']:^5} | {row['r']:^8.4f} | {row['x']:^8.4f} | {row['bsh']:^10.4f} | {row['tap']:^8.4f}")
+
+# === Função para transformar os dados de Entrada em pu e ângulo em radianos === #
+def inicializa_dbar_dlin(dbar, dlin, pbase=100):
+    dbar = dbar.copy()
+    dbar[["pg", "qg", "qn", "qm", "pl", "ql", "shunt"]] /= pbase
+    dbar["teta"] = np.deg2rad(dbar["teta"])
+
+    dlin = dlin.copy()
+    dlin["r"] /= 100
+    dlin["x"] /= 100
+    dlin["bsh"] = (dlin["bsh"] / 2) / pbase
     
-    for row in dlin:
-        from_bus = int(row[0])
-        to_bus = int(row[1])
-        r = row[2] if row[2] is not None else 0.0
-        x = row[3] if row[3] is not None else 0.0
-        b = row[4] if row[4] is not None else 0.0
-        tap = row[5] if row[5] is not None else 1.0
-        
-        print(f"{from_bus:^5} | {to_bus:^5} | {r:^8.4f} | {x:^8.4f} | {b:^10.4f} | {tap:^8.4f}")
-
-def converter_dbar(DBAR):
-    colunas = ["barra", "tipo", "v", "teta", "pg", "qg", "qn", "qm", "bc", "pd", "qd", "shunt"]
-    # Substitui None por 0 antes de criar o DataFrame
-    DBAR_sem_none = [[0 if val is None else val for val in row] for row in DBAR]
-    dbar = pd.DataFrame(DBAR_sem_none, columns=colunas)
-    dbar = dbar.astype({
-        "barra": int, "tipo": int, "v": float, "teta": float,
-        "pg": float, "qg": float, "qn": float, "qm": float,
-        "bc": int, "pd": float, "qd": float, "shunt": float,
-    })
-    return dbar
-
-def converter_dlin(DLIN):
-    colunas = ["de", "para", "r", "x", "bsh", "tap", "tmin", "tmax", "defasagem","bc"]
-    DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
-    dlin = pd.DataFrame(DLIN_sem_none, columns=colunas)
-    dlin = dlin.astype({
-        "de": int, "para": int, "r": float, "x": float,
-        "bsh": float, "tap": float, "tmin": float, "tmax":float,
-        "defasagem": float, "bc":int,
-    })
-    return dlin
+    return dbar, dlin
 
 
 # Teste na leitura
-#DBAR, DLIN = read_pwf('p2_ex1.pwf')
-#DBAR, DLIN = read_pwf('ieee14.pwf')
-#
-#print_dbar_info(DBAR)
-#print_dlin_info(DLIN)
-#
-#dbar_dataframe = converter_dbar(DBAR)
-#dlin_dataframe = converter_dlin(DLIN) 
-#
-#dbar_dataframe
-#dlin_dataframe
+# dbar, dlin = read_pwf('p2_ex1.pwf')
+# imprime_info_dbar(dbar)
+# imprime_info_dlin(dlin)
+# dabr, dlin = inicializa_dbar_dlin(dbar, dlin, 100)
