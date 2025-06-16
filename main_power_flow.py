@@ -175,7 +175,7 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
     M = np.zeros((nbar, nbar))
     L = np.zeros((nbar, nbar))
 
-    print(f"teta {teta}")
+    #print(f"teta {teta}")
 
     for k in range(nbar):
         for m in range(nbar):
@@ -240,8 +240,7 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
         idx_tipo4 = np.where(tipo == 4)[0]
         idx_tipo4_dbar = barra[idx_tipo4]
         idx_dlin_tipo4 = np.where(np.isin(dlin.bc_tr.values, idx_tipo4_dbar))[0]
-
-        nbar_tipo4 = 1
+        nbar_tipo4 = idx_tipo4.size
 
         # Cria linha adicional
         M_CTAP_linha = np.zeros((nbar_tipo4, nbar))
@@ -252,31 +251,44 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
             idx_coluna = np.where(barra == barra_controlada)[0][0] 
             L_CTAP_linha[k, idx_coluna] = 1
 
-        linha_adicional_CTAP = np.hstack([M_CTAP_linha, L_CTAP_linha])
+        linha_adicional_CTAP = np.vstack([M_CTAP_linha, L_CTAP_linha])
 
         # Cria colunas adicionais
         N_CTAP_coluna = np.zeros((nbar, nbar_tipo4))
         L_CTAP_coluna = np.zeros((nbar, nbar_tipo4))
 
         for k in range(nbar_tipo4):
-            de = dlin.de[idx_dlin_tipo4].values
-            para = dlin.para[idx_dlin_tipo4].values
+            tap = float(dlin.tap.iloc[idx_dlin_tipo4].values[k])
+            de = int(dlin.de.iloc[idx_dlin_tipo4].values[k])
+            para = int(dlin.para.iloc[idx_dlin_tipo4].values[k])
             delta = teta[de-1] - teta[para-1]
-            barra_controladora = barra[idx_tipo4[k]]   
-            idx_linha = np.where(barra == barra_controladora)[0][0]
+            barra_controlada = barra[idx_tipo4[k]] 
+            idx_linha = np.where(barra == barra_controlada)[0][0]
 
-            N_CTAP_coluna[idx_linha, k] = (2*(dlin.tap[idx_dlin_tipo4].values)*(v[de-1]**2)*g[de-1,para-1])-(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
-            L_CTAP_coluna[idx_linha, k] = -(2*(dlin.tap[idx_dlin_tipo4].values)*(v[de-1]**2)*b[de-1,para-1])-(v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
-        
-        # coluna_adicional_CREM = np.vstack([N_CREM_coluna, L_CREM_coluna])     
-        
-        # # Cria matriz adicional para CREM (derivadas das tensões em relação à potência reativa gerada ~ 0)
-        # matriz_adicional_CREM = np.zeros((nbar_tipo4, nbar_tipo3))
+            print(f"k: {k} | de[{k}] {de} para[{k}] {para}")
+            print(f"idx_linha {idx_linha}")
+            print(f"barra_controlada {barra_controlada}")
+            
 
-        # Jac_linhas_adicionais = np.vstack([Jac, linha_adicional_CREM])
-        # coluna_adicional_com_matriz_adicional = np.vstack([coluna_adicional_CREM, matriz_adicional_CREM])
-        # Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_com_matriz_adicional])
-        # Jac = Jac_colunas_adicionais
+            N_CTAP_coluna[de-1, k] = (2*(tap)*(v[de-1]**2)*g[de-1,para-1])-(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
+            N_CTAP_coluna[para-1, k] = -(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))+(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
+            L_CTAP_coluna[de-1, k] = -(2*(tap)*(v[de-1]**2)*b[de-1,para-1])-(v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
+            L_CTAP_coluna[para-1, k] = (v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))+(v[de-1]*v[para-1]*g[de-1,para-1]*np.sin(delta))
+
+        coluna_adicional_CTAP= np.vstack([N_CTAP_coluna, L_CTAP_coluna]) 
+
+        # print(f"N_CTAP_coluna {N_CTAP_coluna}")
+        # print(f"L_CTAP_coluna {L_CTAP_coluna}")
+        # print(f"linha_adicional_CTAP {linha_adicional_CTAP}")
+        # print(f"coluna_adicional_CTAP {coluna_adicional_CTAP}")
+        
+        # # Cria matriz adicional para CTAP 
+        #matriz_adicional_CTAP = np.zeros((nbar_tipo4, nbar_tipo3))
+
+        #Jac_linhas_adicionais = np.vstack([Jac, linha_adicional_CTAP])
+        #coluna_adicional_com_matriz_adicional = np.hstack([coluna_adicional_CTAP, matriz_adicional_CTAP])
+        #Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_com_matriz_adicional])
+        #Jac = Jac_colunas_adicionais
 
     return Jac
 
@@ -467,7 +479,7 @@ def calcula_fluxo_de_potencia_newt_ctap(dbar, dlin, tol=1e-4, iter_max=25, flat_
         if CTAP and np.any((abs(v - dbar.v.values) > 0.01) & (tipo == 4)):
             # Corrigir o valor da tensão onde houve violação
             # violou_tensao = abs(v - dbar.v.values) > 0.01
-            print(f"violou tensao {v - dbar.v.values}")
+            print(f"violou tensao")
             #v = np.where(violou_tensao, dbar.v.values, v)
             #qesp = np.where(violou_inf, dbar.qn.values, qesp)
 
