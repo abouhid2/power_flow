@@ -59,7 +59,7 @@ def calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM, CTAP):
 
     return delta_y, pcalc, qcalc
 
-def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, dlin, tap_a, CREM=False, CTAP=False):
+def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM=False, CTAP=False):
     nbar = len(v)
     g = np.real(ybarra)
     b = np.imag(ybarra)
@@ -90,10 +90,20 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, dlin, tap_
                 L[k, m] = v[k]*(g[k, m]*np.sin(delta) - b[k, m]*np.cos(delta))
 
     Jac = np.block([[H, N], [M, L]])
-        
+    
+    nbar_tipo3 = 0
     if CREM:
-        idx_tipo3 = np.where(tipo == 3)[0]
-        nbar_tipo3 = idx_tipo3.size
+        # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
+        # tipo[(tipo == 1) & (bc != 0) & (bc != barra)] = 3
+
+        # Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
+        # tipo[np.isin(barra, bc[(tipo == 3)])] = 4
+
+        # idx_tipo3 = np.where(tipo == 3)[0]
+        # nbar_tipo3 = idx_tipo3.size
+
+        # idx_tipo3 = np.where(tipo == 3)[0]
+        # nbar_tipo3 = idx_tipo3.size
 
         # Cria linhas adicionais
         M_CREM_linha = np.zeros((nbar_tipo3, nbar))
@@ -126,17 +136,24 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, dlin, tap_
         Jac = Jac_colunas_adicionais
 
     if CTAP:
+        idx_bctr = np.where(bc_tr != 0)[0]
+        barras_ctap = bc_tr[idx_bctr]
+        tipo[np.isin(barra, barras_ctap)] = 4
         idx_tipo4 = np.where(tipo == 4)[0]
-        idx_tipo4_dbar = barra[idx_tipo4]
-        idx_dlin_tipo4 = np.where(np.isin(dlin.bc_tr.values, idx_tipo4_dbar))[0]
         nbar_tipo4 = idx_tipo4.size
+
+        idx_bctr = np.where(bc_tr != 0)[0]
+        idx_tipo4_ctap = bc_tr[idx_bctr]
+        idx_tipo4_dbar = np.where(np.isin(barra, idx_tipo4_ctap))[0]
+        idx_dlin_tipo4 = idx_bctr
+        nbar_tipo4 = idx_tipo4_ctap.size
 
         # Cria linha adicional
         M_CTAP_linha = np.zeros((nbar_tipo4, nbar))
-        L_CTAP_linha = np.zeros((nbar_tipo4, nbar))
+        L_CTAP_linha = np.zeros((nbar_tipo4, nbar+nbar_tipo3))
 
         for k in range(nbar_tipo4):
-            barra_controlada = barra[idx_tipo4[k]]             
+            barra_controlada = barra[idx_tipo4_ctap[k]]             
             idx_coluna = np.where(barra == barra_controlada)[0][0] 
             L_CTAP_linha[k, idx_coluna] = 1
 
@@ -144,20 +161,20 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, dlin, tap_
 
         # Cria colunas adicionais
         N_CTAP_coluna = np.zeros((nbar, nbar_tipo4))
-        L_CTAP_coluna = np.zeros((nbar, nbar_tipo4))
+        L_CTAP_coluna = np.zeros((nbar+nbar_tipo3, nbar_tipo4))
 
         for k in range(nbar_tipo4):
             #tap = float(dlin.tap.iloc[idx_dlin_tipo4].values[k])
-            tap = float(tap_a.item())
+            tap_a = float(tap)
             de = int(dlin.de.iloc[idx_dlin_tipo4].values[k])
             para = int(dlin.para.iloc[idx_dlin_tipo4].values[k])
             delta = teta[de-1] - teta[para-1]
-            barra_controlada = barra[idx_tipo4[k]] 
+            barra_controlada = barra[idx_tipo4_ctap[k]] 
             idx_linha = np.where(barra == barra_controlada)[0][0]
 
-            N_CTAP_coluna[de-1, k] = (2*(tap)*(v[de-1]**2)*g[de-1,para-1])-(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
+            N_CTAP_coluna[de-1, k] = (2*(tap_a)*(v[de-1]**2)*g[de-1,para-1])-(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
             N_CTAP_coluna[para-1, k] = -(v[de-1]*v[para-1]*g[de-1,para-1]*np.cos(delta))+(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
-            L_CTAP_coluna[de-1, k] = -(2*(tap)*(v[de-1]**2)*b[de-1,para-1])-(v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
+            L_CTAP_coluna[de-1, k] = -(2*(tap_a)*(v[de-1]**2)*b[de-1,para-1])-(v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))-(v[de-1]*v[para-1]*b[de-1,para-1]*np.sin(delta))
             L_CTAP_coluna[para-1, k] = (v[de-1]*v[para-1]*b[de-1,para-1]*np.cos(delta))+(v[de-1]*v[para-1]*g[de-1,para-1]*np.sin(delta))
 
         coluna_adicional_CTAP = np.vstack([N_CTAP_coluna, L_CTAP_coluna]) 
@@ -276,7 +293,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
                 delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM, CTAP)
 
-                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM, CTAP)
+                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM, CTAP)
                 try:
                     delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
                 except np.linalg.LinAlgError:
@@ -310,7 +327,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
                 delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM, CTAP)
 
-                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM, CTAP)
+                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM, CTAP)
                 try:
                     delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
                 except np.linalg.LinAlgError:
@@ -334,7 +351,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
                 return v, teta, pcalc, qcalc, True
 
 
-        jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM, CTAP)
+        jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM, CTAP)
         try:
             delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
         except np.linalg.LinAlgError:
@@ -456,7 +473,7 @@ dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=False, CTAP=True
+    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True, CTAP=False
 )
 
 # === Saídas para simples de verificação === #
