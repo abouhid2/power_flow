@@ -221,17 +221,11 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
         # Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
         tipo[np.isin(barra, bc[(tipo == 3)])] = 4
 
-        idx_tipo3 = np.where(tipo == 3)[0]
-        nbar_tipo3 = idx_tipo3.size
-
     if CTAP:
         #Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
         idx_bctr = np.where(bc_tr != 0)[0]
         barras_ctap = bc_tr[idx_bctr]
         tipo[np.isin(barra, barras_ctap)] = 4
-        idx_tipo4 = np.where(tipo == 4)[0]
-        nbar_tipo4 = idx_tipo4.size
-
 
     # Zera ângulos das baras PV e PQ e define como 1,0 pu tensões de barras PQ
     if flat_start:
@@ -239,11 +233,27 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
         teta[tipo == 0] = 0
         v[tipo == 0] = 1.0
 
+    idx_tipo3 = np.where(tipo == 3)[0]
+    nbar_tipo3 = idx_tipo3.size
+
+    idx_tipo4 = np.where(tipo == 4)[0]
+    nbar_tipo4 = idx_tipo4.size
+    
+    nbar_ctap = nbar_tipo4 - nbar_tipo3
+
     tipo_pre_iteracoes = tipo.copy()
     tensoes_especificadas = dbar.v.values.copy()
 
     # Iterações
     for it in range(iter_max):
+
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
+
+        idx_tipo4 = np.where(tipo == 4)[0]
+        nbar_tipo4 = idx_tipo4.size
+    
+        nbar_ctap = nbar_tipo4 - nbar_tipo3
 
         # CTAP_original = CTAP
         #  if it < 1:
@@ -283,6 +293,14 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
                 # Atualiza para tipo 0 as barras que estão na lista de barras controladas
                 tipo[np.isin(barra, barras_controladas)] = 0
 
+                idx_tipo3 = np.where(tipo == 3)[0]
+                nbar_tipo3 = idx_tipo3.size
+
+                idx_tipo4 = np.where(tipo == 4)[0]
+                nbar_tipo4 = idx_tipo4.size
+            
+                nbar_ctap = nbar_tipo4 - nbar_tipo3
+
                 # Corrigir qesp considerando ambas as condições
                 qesp = np.where(violou_sup, qmax, qesp)
                 qesp = np.where(violou_inf, qmin, qesp)
@@ -320,6 +338,14 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
                 
                 cond_barras_tipo_1 = (tipo == 0) & (tipo_pre_iteracoes == 1) & cond_tensao_tipo_1
                 tipo[cond_barras_tipo_1] = 1
+
+                idx_tipo3 = np.where(tipo == 3)[0]
+                nbar_tipo3 = idx_tipo3.size
+
+                idx_tipo4 = np.where(tipo == 4)[0]
+                nbar_tipo4 = idx_tipo4.size
+            
+                nbar_ctap = nbar_tipo4 - nbar_tipo3
 
                 delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM, CTAP)
 
@@ -366,8 +392,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
             # print("TAP ANTES")
             # print(tap)
             #v[idx_tipo4] += delta_var_estado[nbar+idx_tipo4]
-            # tap += delta_var_estado[-idx_bctr.size]
-            tap += delta_var_estado[nbar*2+nbar_tipo3:nbar*2+nbar_tipo3+nbar_tipo4]
+            tap += delta_var_estado[nbar*2+nbar_tipo3:nbar*2+nbar_tipo3+nbar_ctap]
             # print(delta_var_estado[28])
             # print(delta_var_estado[29])
             
@@ -467,11 +492,11 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso4.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso3.pwf'
 # arquivo_pwf = 'exemplo_QLIM.pwf'
 pbase = 100.
-tol = 1e-4	
-iter_max = 25
+tol = 1e-6	
+iter_max = 200
 
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
