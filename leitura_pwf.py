@@ -116,7 +116,7 @@ def read_pwf(filename):
                     continue
                 
                 # Initialize with None for all fields
-                dlin_row = [0, 0, None, None, None, None, None, None, None, None]
+                dlin_row = [0, 0, None, None, None, None, None, None, None, None, None]
                 
                 # From bus (columns 1-5)
                 from_str = line[0:5].strip()
@@ -156,6 +156,14 @@ def read_pwf(filename):
                     dlin_row[5] = float(tap_str)
                 else:
                     dlin_row[5] = 1.0
+
+                # Tipo do Equipamento
+                tap_str = line[38:43].strip()
+                if tap_str:
+                    dlin_row[5] = float(tap_str)
+                    dlin_row[10] = "TR"
+                else:
+                    dlin_row[10] = "LT"
                 
                 # Tap min (columns 44-48)
                 tapmin_str = line[44:48].strip()
@@ -205,11 +213,11 @@ def read_pwf(filename):
     })
 
     DLIN_sem_none = [[0 if val is None else val for val in row] for row in DLIN]
-    dlin = pd.DataFrame(DLIN_sem_none, columns=["de", "para", "r", "x", "bsh", "tap", "tap_min", "tap_max", "defasagem", "bc_tr"])
+    dlin = pd.DataFrame(DLIN_sem_none, columns=["de", "para", "r", "x", "bsh", "tap", "tap_min", "tap_max", "defasagem", "bc_tr", "eqp"])
     dlin = dlin.fillna(0).astype({
         "de": int, "para": int, "r": float, "x": float,
         "bsh": float, "tap": float, "tap_min": float, "tap_max": float,
-        "defasagem": float, "bc_tr": int
+        "defasagem": float, "bc_tr": int, "eqp":str
     })
 
     return dbar, dlin
@@ -227,15 +235,24 @@ def imprime_info_dbar(dbar):
               f"{row['pl']:^8.2f} | {row['ql']:^8.2f} | {row['shunt']:^8.2f}")
 
 def imprime_info_dlin(dlin):
-    print(f"Number of branches: {len(dlin)}")
-    print("\nBranch Information:")
-    print("=" * 120)
-    print(f"{'From':^5} | {'To':^5} | {'R (%)':^8} | {'X (%)':^8} | {'B (Mvar)':^10} | {'Tap':^8} | {'Tap min':^8} | {'Tap max':^8} | {'Def':^8} | {'Bc':^8}")
-    print("-" * 120)
+    print(f"Number of branches: {len(dlin)}\n")
+    print("Branch Information:")
+    print("=" * 132)
+    print(f"{'From':^6} | {'To':^6} | {'R (%)':^10} | {'X (%)':^10} | {'B (Mvar)':^12} | {'Tap':^8} | {'Tap min':^9} | {'Tap max':^9} | {'Def':^8} | {'Bc':^6} | {'EQP':^6}")
+    print("-" * 132)
 
     for _, row in dlin.iterrows():
-        print(f"{row['de']:^5} | {row['para']:^5} | {row['r']:^8.4f} | {row['x']:^8.4f} | {row['bsh']:^10.4f} | {row['tap']:^8.4f} |"
-              f"{row['tap_min']:^8.4f} | {row['tap_max']:^8.4f} | {row['defasagem']:^8.4f} | {row['bc_tr']:^5} ")
+        print(f"{row['de']:^6} | "
+              f"{row['para']:^6} | "
+              f"{row['r']:^10.4f} | "
+              f"{row['x']:^10.4f} | "
+              f"{row['bsh']:^12.4f} | "
+              f"{row['tap']:^8.4f} | "
+              f"{row['tap_min']:^9.4f} | "
+              f"{row['tap_max']:^9.4f} | "
+              f"{row['defasagem']:^8.4f} | "
+              f"{str(row['bc_tr']):^6} | "
+              f"{str(row['eqp']):^6}")
 
 # === Função para transformar os dados de Entrada em pu e ângulo em radianos === #
 def inicializa_dbar_dlin(dbar, dlin, pbase=100):
@@ -252,7 +269,7 @@ def inicializa_dbar_dlin(dbar, dlin, pbase=100):
 
 
 # Teste na leitura
-# dbar, dlin = read_pwf('arquivos_do_trabalho/IEEE14_Caso3.pwf')
-# imprime_info_dbar(dbar)
-# imprime_info_dlin(dlin)
-# dabr, dlin = inicializa_dbar_dlin(dbar, dlin, 100)
+dbar, dlin = read_pwf('arquivos_do_trabalho/IEEE14_Caso3.pwf')
+imprime_info_dbar(dbar)
+imprime_info_dlin(dlin)
+dabr, dlin = inicializa_dbar_dlin(dbar, dlin, 100)
