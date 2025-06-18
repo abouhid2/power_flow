@@ -170,95 +170,103 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
         v[tipo == 0] = 1.0
 
     tipo_pre_iteracoes = tipo.copy()
+    tensoes_especificadas = dbar.v.values.copy()
 
     # Iterações
     for it in range(iter_max):
-        delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
-        
-         # Se o QLIM estiver ativado e houver alteração no Q calculado, verifica se a barra pode voltar a ser PV ou não
-        # Essa lógica esta incorreta pq a barra foi alterada para tipo 0 lá em cima
-        if QLIM and np.any((qesp == qmin) | (qesp == qmax)):
-            cond_tensao_tipo_1 = (
-                ((v < dbar.v.values) & (qesp == qmin)) |
-                ((v > dbar.v.values) & (qesp == qmax))
-            )
-            
-            cond_barras_tipo_1 = (tipo == 0) & (tipo_pre_iteracoes == 1) & cond_tensao_tipo_1
-            tipo[cond_barras_tipo_1] = 1
-
-            barras_retornaram_pv = barra[cond_barras_tipo_1]
-            print(f"Barras que voltaram a ser PV: {barras_retornaram_pv.tolist()}")
-
-            # Identifica barras que eram tipo 3 e viraram tipo 0
-            cond_barras_tipo_3 = (tipo == 0) & (tipo_pre_iteracoes == 3)
-
-            # Pega os códigos das barras controladoras dessas barras
-            # barras_controladoras = bc[cond_barras_tipo_3]
-
-            # # Converte vetor 'barra' em índice: encontra onde cada controladora está no vetor 'barra'
-            # # Cria um mapeamento: código da barra → índice
-            # mapa_barra_para_indice = dict(zip(barra, np.arange(len(barra))))
-            # indices_controladoras = np.vectorize(mapa_barra_para_indice.get)(barras_controladoras)
-
-            # # Coleta os valores nas posições certas
-            # v_ctrl = v[indices_controladoras]
-            # v_ref = dbar.v.values[indices_controladoras]
-            # qmin_ctrl = qmin[cond_barras_tipo_3]
-            # qmax_ctrl = qmax[cond_barras_tipo_3]
-            # qcalc_ctrl = qcalc[cond_barras_tipo_3]
-
-            # # Verifica condição de tensão das controladoras
-            # cond_tensao_ctrl = (
-            #     ((v_ctrl < v_ref) & (qcalc_ctrl == qmin_ctrl)) |
-            #     ((v_ctrl > v_ref) & (qcalc_ctrl == qmax_ctrl))
-            # )
-
-            # # Atualiza tipo = 3 nas barras tipo 3 envolvidas
-            # idx_tipo3 = np.where(cond_barras_tipo_3)[0]
-            # tipo[idx_tipo3[cond_tensao_ctrl]] = 3
-
-            # # Atualiza tipo = 4 nas barras controladoras envolvidas
-            # tipo[indices_controladoras[cond_tensao_ctrl]] = 4
-            
-            # v[cond] = dbar.v.values[cond]
-
-
-
-        if QLIM and np.any(((qcalc > qmax) | (qcalc < qmin)) & np.isin(tipo, [1, 3])):
-            cond_tipo = (tipo == 1) | (tipo == 3)
-            violou_sup = (qcalc > qmax) & cond_tipo 
-            violou_inf = (qcalc < qmin) & cond_tipo
-            violou_limite = violou_sup | violou_inf
-
-            print(f"Iteração {it:>3}: Q calculado(s) além dos limites informados.")
-            print(f"Barras violadas: {barra[violou_limite]}")
-
-            # Identifica índices das barras tipo 3 que violaram limite
-            idx_tipo3_violado = np.where((violou_limite) & (tipo == 3))[0]
-
-            # Atualizar tipo para 0 onde houve violação
-            tipo = np.where(violou_limite, 0, tipo)
-           
-            # Barras controladas por essas barras tipo 3
-            barras_controladas = bc[idx_tipo3_violado]
-
-            # Atualiza para tipo 0 as barras que estão na lista de barras controladas
-            tipo[np.isin(barra, barras_controladas)] = 0
-
-            # Corrigir qesp considerando ambas as condições
-            qesp = np.where(violou_sup, qmax, qesp)
-            qesp = np.where(violou_inf, qmin, qesp)
-
-            delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
-        
+        delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)    
 
         erro_max = np.max(np.abs(delta_residuos))
         print(f"Iteração {it:>3}: Erro máximo = {erro_max:.4e}")
 
         # Verifica se o erro máximo é menor que a tolerância
         if erro_max < tol:
-            print(f"Convergência atingida em {it} iterações.")
-            return v, teta, pcalc, qcalc, True
+            
+            if QLIM and np.any(((qcalc > qmax) | (qcalc < qmin)) & np.isin(tipo, [1, 3])):
+                it += 1
+
+                cond_tipo = (tipo == 1) | (tipo == 3)
+                violou_sup = (qcalc > qmax) & cond_tipo 
+                violou_inf = (qcalc < qmin) & cond_tipo
+                violou_limite = violou_sup | violou_inf
+
+                # print(f"Iteração {it:>3}: Q calculado(s) além dos limites informados.")
+                # print(f"Barras violadas: {barra[violou_limite]}")
+
+                # Identifica índices das barras tipo 3 que violaram limite
+                idx_tipo3_violado = np.where((violou_limite) & (tipo == 3))[0]
+
+                # Atualizar tipo para 0 onde houve violação
+                tipo = np.where(violou_limite, 0, tipo)
+            
+                # Barras controladas por essas barras tipo 3
+                barras_controladas = bc[idx_tipo3_violado]
+
+                # Atualiza para tipo 0 as barras que estão na lista de barras controladas
+                tipo[np.isin(barra, barras_controladas)] = 0
+
+                # Corrigir qesp considerando ambas as condições
+                qesp = np.where(violou_sup, qmax, qesp)
+                qesp = np.where(violou_inf, qmin, qesp)
+
+                delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+
+                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM)
+                try:
+                    delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
+                except np.linalg.LinAlgError:
+                    print("Erro: Matriz Jacobiana singular.")
+                    break
+
+                teta += delta_var_estado[:nbar]
+                v += delta_var_estado[nbar:nbar*2]
+
+                delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+
+                erro_max = np.max(np.abs(delta_residuos))
+                print(f"Iteração {it:>3}: Erro máximo = {erro_max:.4e}")
+
+                if erro_max < tol:
+                    print(f"Convergência atingida em {it} iterações.")
+                    return v, teta, pcalc, qcalc, True
+
+
+            # Backoff
+            if QLIM and np.any(tipo_pre_iteracoes != tipo):
+                it += 1
+
+                cond_tensao_tipo_1 = (
+                    ((v < tensoes_especificadas) & (qesp == qmin)) |
+                    ((v > tensoes_especificadas) & (qesp == qmax))
+                )
+                
+                cond_barras_tipo_1 = (tipo == 0) & (tipo_pre_iteracoes == 1) & cond_tensao_tipo_1
+                tipo[cond_barras_tipo_1] = 1
+
+                delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+
+                jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM)
+                try:
+                    delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
+                except np.linalg.LinAlgError:
+                    print("Erro: Matriz Jacobiana singular.")
+                    break
+
+                teta += delta_var_estado[:nbar]
+                v += delta_var_estado[nbar:nbar*2]
+
+                delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
+
+                erro_max = np.max(np.abs(delta_residuos))
+                print(f"Iteração {it:>3}: Erro máximo = {erro_max:.4e}")
+
+                if erro_max < tol:
+                    print(f"Convergência atingida em {it} iterações.")
+                    return v, teta, pcalc, qcalc, True
+
+            else:
+                print(f"Convergência atingida em {it} iterações.")
+                return v, teta, pcalc, qcalc, True
 
 
         jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, CREM)
@@ -363,7 +371,7 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 # === Configuração Inicial === #
 arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso2.pwf'
-# arquivo_pwf = 'exemplo_QLIM.pwf'
+# arquivo_pwf = 'arquivos_do_trabalho/teste.pwf'
 pbase = 100.
 tol = 1e-5	
 iter_max = 25
@@ -376,7 +384,7 @@ dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, dlin, tol, iter_max, flat_start=True, QLIM=True, CREM=False
+    dbar, dlin, tol, iter_max, flat_start=True, QLIM=True, CREM=True
 )
 
 # === Saídas para simples de verificação === #
