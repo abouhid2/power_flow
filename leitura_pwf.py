@@ -252,7 +252,7 @@ def inicializa_dbar_dlin(dbar, dlin, pbase=100):
 
 
 # Teste na leitura
-# dbar, dlin = read_pwf('arquivos_do_trabalho/IEEE14_Caso4.pwf')
+# dbar, dlin = read_pwf('arquivos_do_trabalho/IEEE14_Caso3.pwf')
 # imprime_info_dbar(dbar)
 # imprime_info_dlin(dlin)
 # dabr, dlin = inicializa_dbar_dlin(dbar, dlin, 100)
