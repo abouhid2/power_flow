@@ -181,6 +181,10 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dli
 
         Jac = Jac_colunas_adicionais
 
+        max_val = np.max(np.abs(Jac))
+        max_pos = np.unravel_index(np.argmax(np.abs(Jac)), Jac.shape)
+        print(f"Valor máximo do Jacobiano: {max_val:.3e} na posição {max_pos}")
+
     return Jac
 
 
@@ -241,11 +245,11 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
     # Iterações
     for it in range(iter_max):
 
-        CTAP_original = CTAP
-        if it < 1:
-            CTAP = False
-        else:
-            CTAP = CTAP_original
+        # CTAP_original = CTAP
+        # if it < 1:
+        #     CTAP = False
+        # else:
+        #     CTAP = CTAP_original
 
         delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM, CTAP)    
 
@@ -357,8 +361,9 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
         if CTAP:
             #v[idx_tipo4] += delta_var_estado[nbar+idx_tipo4]
-            tap += delta_var_estado[nbar*2+nbar_tipo3:nbar_tipo4-nbar_tipo3]
+            tap += delta_var_estado[-idx_bctr.size]
             dlin.loc[dlin.bc_tr != 0, 'tap'] = tap
+            # if it > 1:
             ybarra = calcula_ybarra(nbar, dlin, shunt)
 
             # print(dlin.tap)
@@ -450,7 +455,7 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso1.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso4.pwf'
 # arquivo_pwf = 'arquivos_do_trabalho/teste.pwf'
 pbase = 100.
 tol = 1e-8	
@@ -462,7 +467,7 @@ dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True, CTAP=False
+    dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True, CTAP=True
 )
 
 # === Entradas para simples de verificação === #
