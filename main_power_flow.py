@@ -144,7 +144,7 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dli
         L_CTAP_linha = np.zeros((nbar_tipo4, nbar+nbar_tipo3))
 
         for k in range(nbar_tipo4):
-            barra_controlada = barra[idx_tipo4_ctap[k]]             
+            barra_controlada = barra[idx_tipo4_dbar[k]]             
             idx_coluna = np.where(barra == barra_controlada)[0][0] 
             L_CTAP_linha[k, idx_coluna] = 1
 
@@ -156,7 +156,7 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dli
 
         for k in range(nbar_tipo4):
             #tap = float(dlin.tap.iloc[idx_dlin_tipo4].values[k])
-            tap_a = float(tap)
+            tap_a = float(tap[k])
             de = int(dlin.de.iloc[idx_dlin_tipo4].values[k])
             para = int(dlin.para.iloc[idx_dlin_tipo4].values[k])
             delta = teta[de-1] - teta[para-1]
@@ -181,9 +181,9 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dli
 
         Jac = Jac_colunas_adicionais
 
-        max_val = np.max(np.abs(Jac))
-        max_pos = np.unravel_index(np.argmax(np.abs(Jac)), Jac.shape)
-        print(f"Valor máximo do Jacobiano: {max_val:.3e} na posição {max_pos}")
+        # max_val = np.max(np.abs(Jac))
+        # max_pos = np.unravel_index(np.argmax(np.abs(Jac)), Jac.shape)
+        # print(f"Valor máximo do Jacobiano: {max_val:.3e} na posição {max_pos}")
 
     return Jac
 
@@ -212,7 +212,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
     # Cálculo da matriz Ybarra
     ybarra = calcula_ybarra(nbar, dlin, shunt)
-
+    nbar_tipo3 = 0
     # A barra PV que controla passa a ser P (tipo 3) e barra PQ controlada passa a ser PQV (tipo 4)
     if CREM:
         # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
@@ -246,7 +246,8 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
     for it in range(iter_max):
 
         # CTAP_original = CTAP
-        # if it < 1:
+        #  if it < 1:
+        #     print(jacobiano)
         #     CTAP = False
         # else:
         #     CTAP = CTAP_original
@@ -347,6 +348,8 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
 
         jacobiano = calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM, CTAP)
+        # print( jacobiano[:, 29]) 
+
         try:
             delta_var_estado = np.linalg.solve(jacobiano, delta_residuos)
         except np.linalg.LinAlgError:
@@ -360,14 +363,23 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
             qesp[idx_tipo3] += delta_var_estado[nbar*2:nbar*2+nbar_tipo3]
 
         if CTAP:
+            # print("TAP ANTES")
+            # print(tap)
             #v[idx_tipo4] += delta_var_estado[nbar+idx_tipo4]
-            tap += delta_var_estado[-idx_bctr.size]
+            # tap += delta_var_estado[-idx_bctr.size]
+            tap += delta_var_estado[nbar*2+nbar_tipo3:nbar*2+nbar_tipo3+nbar_tipo4]
+            # print(delta_var_estado[28])
+            # print(delta_var_estado[29])
+            
+            # print("TAP")
+            # print(tap)
             dlin.loc[dlin.bc_tr != 0, 'tap'] = tap
             # if it > 1:
             ybarra = calcula_ybarra(nbar, dlin, shunt)
 
             # print(dlin.tap)
-
+        # print("VETOR")
+        # print(delta_residuos)
     print("Fluxo de potência não convergiu!")
     return v, teta, pcalc, qcalc, False
 
@@ -456,9 +468,9 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 # === Configuração Inicial === #
 arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso4.pwf'
-# arquivo_pwf = 'arquivos_do_trabalho/teste.pwf'
+# arquivo_pwf = 'exemplo_QLIM.pwf'
 pbase = 100.
-tol = 1e-8	
+tol = 1e-4	
 iter_max = 25
 
 # === Dados de Entrada === #
@@ -477,3 +489,6 @@ imprime_info_dlin(dlin)
 imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
 imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
 imprime_balanco_potencia(dbar, pcalc, pbase, 3)
+
+
+np.set_printoptions(precision=2, suppress=True)
