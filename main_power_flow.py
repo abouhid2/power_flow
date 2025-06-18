@@ -492,7 +492,7 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso3.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso5.pwf'
 # arquivo_pwf = 'exemplo_QLIM.pwf'
 pbase = 100.
 tol = 1e-6	
