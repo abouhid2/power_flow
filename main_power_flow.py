@@ -93,17 +93,8 @@ def calcula_jacobiano(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dli
     
     nbar_tipo3 = 0
     if CREM:
-        # Atualizar barras tipo 1 com bc ≠ 0 para tipo 3 (P)
-        # tipo[(tipo == 1) & (bc != 0) & (bc != barra)] = 3
-
-        # Atualizar barras cujo número está no campo 'bc' de outras barras para tipo 4 (PQV)
-        # tipo[np.isin(barra, bc[(tipo == 3)])] = 4
-
-        # idx_tipo3 = np.where(tipo == 3)[0]
-        # nbar_tipo3 = idx_tipo3.size
-
-        # idx_tipo3 = np.where(tipo == 3)[0]
-        # nbar_tipo3 = idx_tipo3.size
+        idx_tipo3 = np.where(tipo == 3)[0]
+        nbar_tipo3 = idx_tipo3.size
 
         # Cria linhas adicionais
         M_CREM_linha = np.zeros((nbar_tipo3, nbar))
@@ -459,7 +450,7 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso3.pwf'
+arquivo_pwf = 'arquivos_do_trabalho/IEEE14_Caso1.pwf'
 # arquivo_pwf = 'arquivos_do_trabalho/teste.pwf'
 pbase = 100.
 tol = 1e-8	
@@ -467,8 +458,6 @@ iter_max = 25
 
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
-# imprime_info_dbar(dbar)
-# imprime_info_dlin(dlin)
 dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
@@ -476,6 +465,9 @@ v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
     dbar, dlin, tol, iter_max, flat_start=True, QLIM=False, CREM=True, CTAP=False
 )
 
+# === Entradas para simples de verificação === #
+imprime_info_dbar(dbar)
+imprime_info_dlin(dlin)
 # === Saídas para simples de verificação === #
 imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
 imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
