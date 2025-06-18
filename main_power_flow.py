@@ -81,8 +81,6 @@ def calcula_residuos_ctap(v, teta, ybarra, tipo, pesp, qesp, dbar, dlin, tap, CR
 
     delta_y = np.concatenate([delta_p, delta_q])
 
-    #print(f"delta_y 1 {delta_y}")
-
     if CREM:
         delta_v_completo = dbar.v.values - v
         delta_v = delta_v_completo[tipo == 4]
@@ -91,12 +89,9 @@ def calcula_residuos_ctap(v, teta, ybarra, tipo, pesp, qesp, dbar, dlin, tap, CR
     
     if CTAP:
         delta_v_completo = dbar.v.values - v
-        delta_v = np.round(delta_v_completo[tipo == 4],10)
-        print(f"delta_v {delta_v}")
+        delta_v = delta_v_completo[tipo == 4]
+        
         delta_y = np.hstack([delta_y, delta_v])
-        #print(f"delta_y 2 {delta_y}")
-    
-    print(f"Resíduos {delta_y}")
 
     return delta_y, pcalc, qcalc
 
@@ -256,7 +251,8 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
         L_CTAP_coluna = np.zeros((nbar, nbar_tipo4))
 
         for k in range(nbar_tipo4):
-            tap = float(dlin.tap.iloc[idx_dlin_tipo4].values[k])
+            #tap = float(dlin.tap.iloc[idx_dlin_tipo4].values[k])
+            tap = float(tap_a.item())
             de = int(dlin.de.iloc[idx_dlin_tipo4].values[k])
             para = int(dlin.para.iloc[idx_dlin_tipo4].values[k])
             delta = teta[de-1] - teta[para-1]
@@ -270,7 +266,6 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
 
         coluna_adicional_CTAP = np.vstack([N_CTAP_coluna, L_CTAP_coluna]) 
 
-        # # Cria matriz adicional para CTAP 
         n_col = nbar_tipo4
         n_lin = linha_adicional_CTAP.shape[0]
         matriz_adicional_CTAP = np.zeros((n_col, n_lin))
@@ -279,8 +274,9 @@ def calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr
         coluna_adicional_com_matriz_adicional = np.vstack([coluna_adicional_CTAP, matriz_adicional_CTAP])
 
         Jac_colunas_adicionais = np.hstack([Jac_linhas_adicionais, coluna_adicional_com_matriz_adicional])
-        
+
         Jac = Jac_colunas_adicionais
+
 
     return Jac
 
@@ -329,6 +325,7 @@ def calcula_fluxo_de_potencia_newt(dbar, dlin, tol=1e-4, iter_max=25, flat_start
 
     # Iterações
     for it in range(iter_max):
+      
         delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
 
         if QLIM and np.any(((qcalc > dbar.qm.values) | (qcalc < dbar.qn.values)) & (tipo == 1)):
@@ -444,14 +441,11 @@ def calcula_fluxo_de_potencia_newt_ctap(dbar, dlin, tol=1e-4, iter_max=25, flat_
 
     # Iterações
     for it in range(iter_max):
-        print(f"it {it}")
-        #delta_residuos, pcalc, qcalc = calcula_residuos(v, teta, ybarra, tipo, pesp, qesp, dbar, CREM)
-        if it >= 0:
-            CTAP = True
-        else: 
-            CTAP = False
 
-        print(f"CTAP {CTAP}")
+        if it > 1:
+            CTAP = True
+        else:
+            CTAP = False
 
         delta_residuos, pcalc, qcalc = calcula_residuos_ctap(v, teta, ybarra, tipo, pesp, qesp, dbar, dlin, tap, CREM, CTAP)
 
@@ -473,13 +467,13 @@ def calcula_fluxo_de_potencia_newt_ctap(dbar, dlin, tol=1e-4, iter_max=25, flat_
      
 
         erro_max = np.max(np.abs(delta_residuos))
-        print(f"Iteração {it:>3}: Erro máximo = {erro_max:.4e}")
+        indice_max = np.argmax(np.abs(delta_residuos))
+        print(f"Fim iteração {it:>3}: Erro máximo = {erro_max:.4e}, na posição: {indice_max}")
 
         # Verifica se o erro máximo é menor que a tolerância
         if erro_max < tol:
             print(f"Convergência atingida em {it} iterações.")
             return v, teta, pcalc, qcalc, True
-
 
         jacobiano = calcula_jacobiano_CTAP(v, teta, pcalc, qcalc, ybarra, tipo, barra, bc, bc_tr, dlin, tap, CREM, CTAP)
 
@@ -493,21 +487,15 @@ def calcula_fluxo_de_potencia_newt_ctap(dbar, dlin, tol=1e-4, iter_max=25, flat_
 
         teta += delta_var_estado[:nbar]
         v += delta_var_estado[nbar:nbar*2]
-        print(f"delta_var_estado {delta_var_estado}")
-        #print(f"delta_var_estado[nbar:nbar*2] {delta_var_estado[nbar:nbar*2]}")
-        #print(f"v {v}")
-
         
         if CREM:
             qesp[idx_tipo3] += delta_var_estado[nbar*2:nbar*2+nbar_tipo3]
 
         if CTAP:
-            #rint(f"delta_var_estado[nbar+idx_tipo4] {delta_var_estado[nbar+idx_tipo4]}")
-            print(f"tap antes {tap}")
-            v[idx_tipo4] += delta_var_estado[nbar+idx_tipo4]
+            #v[idx_tipo4] += delta_var_estado[nbar+idx_tipo4]
             tap += delta_var_estado[-1]
-            #print(f"v atualizado {v}")
-            print(f"tap atualizado {tap}")
+            dlin.loc[dlin.bc_tr != 0, 'tap'] = tap
+            ybarra = calcula_ybarra(nbar, dlin, shunt)
 
         # Se o QLIM estiver ativado e houver alteração no Q calculado, verifica se a barra pode voltar a ser PV ou não
         # Essa lógica esta incorreta pq a barra foi alterada para tipo 0 lá em cima
@@ -607,11 +595,11 @@ def imprime_balanco_potencia(dbar, pcalc, pbase=100, casa_decimal=6):
 
 
 # === Configuração Inicial === #
-arquivo_pwf = 'exemplo_CTAP.pwf'
+arquivo_pwf = 'exemplo_CTAP_2.pwf'
 # arquivo_pwf = 'exemplo_CREM.pwf'
 pbase = 100.
 tol = 1e-8	
-iter_max = 4
+iter_max = 100
 
 # === Dados de Entrada === #
 dbar, dlin = read_pwf(arquivo_pwf)
@@ -621,7 +609,7 @@ dbar, dlin = inicializa_dbar_dlin(dbar, dlin, pbase)
 
 # === Execução Principal === #
 # v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt(
-#     dbar, dlin, tol, iter_max, flat_start=False, QLIM=False, CREM=False
+#     dbar, dlin, tol, iter_max, flat_start=False, QLIM=False, CREM=True
 # )
 
 v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt_ctap(
@@ -629,6 +617,6 @@ v, teta, pcalc, qcalc, convergiu = calcula_fluxo_de_potencia_newt_ctap(
 )
 
 # === Saídas para simples de verificação === #
-#imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
-#imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
+imprime_resultados_barras(dbar, v, teta, pcalc, qcalc, pbase, 3)
+imprime_resultados_circuitos(dlin, v, teta, pbase, 3)
 #imprime_balanco_potencia(dbar, pcalc, pbase, 3)
