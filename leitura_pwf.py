@@ -187,7 +187,7 @@ def read_pwf(filename):
                 # Barra Controlada (columns 59-64)
                 bc_str = line[59:64].strip()
                 if bc_str:
-                    dlin_row[9] = int(bc_str)
+                    dlin_row[9] = abs(int(bc_str))
                 
                 DLIN.append(dlin_row)
                 
