@@ -36,7 +36,7 @@
   color: red;
   font-size: 14px;
   margin-top: 5px;
-  display: none; /* This is intentionally set to none for the exercise */
+  display: block; /* Changed from none to block to make errors visible */
 }
 
 /* TODO: Add styles for success message */
@@ -47,7 +47,7 @@
   margin-bottom: 15px;
   background-color: #e8f5e9;
   border-radius: 4px;
-  display: none; /* This is intentionally set to none for the exercise */
+  display: block; /* Changed from none to block to make success message visible */
 }
 
 button {
@@ -66,4 +66,12 @@ button:hover {
   background-color: #45a049;
 }
 
-/* TODO: Add styles for disabled button during submission */ 
+/* Styles for disabled button during submission */
+button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+button:disabled:hover {
+  background-color: #cccccc;
+} 

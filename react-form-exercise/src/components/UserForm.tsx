@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './UserForm.css';
 
 interface UserData {
@@ -23,62 +23,156 @@ const UserForm: React.FC = () => {
     age: '',
     occupation: ''
   });
-
-
-  const validField = (name: string, value: string) => {
-
-    return true
-  }
-  
-  // TODO: Add form validation state
   const [errors, setErrors] = useState<Record<string, string>>({});
-  
-  // TODO: Add submission status state
-  // const [isSubmitting, setIsSubmitting] = useState(false);
-  // const [isSubmitted, setIsSubmitted] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+
+  // Validate all fields on component mount
+  useEffect(() => {
+    const initialErrors: Record<string, string> = {};
+    
+    // Validate name
+    if (!userData.name.trim()) {
+      initialErrors.name = 'Name is required';
+    } else if (userData.name.length < 8) {
+      initialErrors.name = 'Name must be at least 8 characters long';
+    }
+    
+    // Validate email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!userData.email.trim()) {
+      initialErrors.email = 'Email is required';
+    } else if (!emailRegex.test(userData.email)) {
+      initialErrors.email = 'Please enter a valid email address';
+    }
+    
+    // Validate age
+    const ageValue = parseInt(userData.age);
+    if (!userData.age.trim()) {
+      initialErrors.age = 'Age is required';
+    } else if (isNaN(ageValue) || ageValue < 18 || ageValue > 100) {
+      initialErrors.age = 'Age must be between 18 and 100';
+    }
+    
+    // Validate occupation
+    if (!userData.occupation.trim()) {
+      initialErrors.occupation = 'Occupation is required';
+    } else if (userData.occupation.length < 3) {
+      initialErrors.occupation = 'Occupation must be at least 3 characters long';
+    }
+    
+    setErrors(initialErrors);
+  }, []);
+
+  const validateField = (name: string, value: string) => {
+    let newErrors = { ...errors };
+    
+    if (name === 'name') {
+      if (!value.trim()) {
+        newErrors[name] = 'Name is required';
+      } else if (value.length < 8) {
+        newErrors[name] = 'Name must be at least 8 characters long';
+      } else {
+        delete newErrors[name];
+      }
+    }
+
+    if (name === 'email') {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!value.trim()) {
+        newErrors[name] = 'Email is required';
+      } else if (!emailRegex.test(value)) {
+        newErrors[name] = 'Please enter a valid email address';
+      } else {
+        delete newErrors[name];
+      }
+    }
+
+    if (name === 'age') {
+      const ageValue = parseInt(value);
+      if (!value.trim()) {
+        newErrors[name] = 'Age is required';
+      } else if (isNaN(ageValue) || ageValue < 18 || ageValue > 100) {
+        newErrors[name] = 'Age must be between 18 and 100';
+      } else {
+        delete newErrors[name];
+      }
+    }
+
+    if (name === 'occupation') {
+      if (!value.trim()) {
+        newErrors[name] = 'Occupation is required';
+      } else if (value.length < 3) {
+        newErrors[name] = 'Occupation must be at least 3 characters long';
+      } else {
+        delete newErrors[name];
+      }
+    }
+    
+    setErrors(newErrors);
+  };
   
   // This function updates the state when inputs change
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
 
-    if (validField(name, value)) {
-      setUserData({
-        ...userData,
-        [name]: value
-      });
-      
-    }
-    // TODO: Clear errors when user types
+    validateField(name, value);
+    setUserData({
+      ...userData,
+      [name]: value
+    });
   };
   
-  // TODO: Implement form validation
-  // const validateForm = (): boolean => {
-  //   let isValid = true;
-  //   const newErrors: Record<string, string> = {};
-  //
-  //   // Add validation logic here
-  //
-  //   // setErrors(newErrors);
-  //   return isValid;
-  // };
+  // Validate the entire form
+  const validateForm = (): boolean => {
+    // Validate all fields
+    validateField('name', userData.name);
+    validateField('email', userData.email);
+    validateField('age', userData.age);
+    validateField('occupation', userData.occupation);
+    
+    // Check if there are any errors
+    return Object.keys(errors).length === 0;
+  };
   
-  // TODO: Implement form submission
+  // Handle form submission
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // TODO: Add validation before submission
+    // Validate the form
+    const isValid = validateForm();
     
-    // TODO: Simulate API call with setTimeout
-    console.log('Form submitted with:', userData);
-    
-    // TODO: Reset form after successful submission
+    if (isValid) {
+      setIsSubmitting(true);
+      
+      // Simulate API call with setTimeout
+      setTimeout(() => {
+        console.log('Form submitted with:', userData);
+        setIsSubmitting(false);
+        setIsSubmitted(true);
+        
+        // Reset form after successful submission
+        setUserData({
+          name: '',
+          email: '',
+          age: '',
+          occupation: ''
+        });
+      }, 1500);
+    } else {
+      setIsSubmitted(false)
+    }
   };
   
   return (
     <div className="form-container">
       <h2>User Registration Form</h2>
       
-      {/* TODO: Add success message when form is submitted successfully */}
+      {isSubmitted && (
+        <div className="success-message">
+          Form submitted successfully!
+        </div>
+      )}
       
       <form onSubmit={handleSubmit}>
         <div className="form-group">
@@ -90,9 +184,9 @@ const UserForm: React.FC = () => {
             value={userData.name}
             onChange={handleChange}
           />
-          {/* TODO: Add error message for name */}
+          {errors["name"] && <p className="error-message">{errors["name"]}</p>}
         </div>
-        
+
         <div className="form-group">
           <label htmlFor="email">Email:</label>
           <input
@@ -102,9 +196,11 @@ const UserForm: React.FC = () => {
             value={userData.email}
             onChange={handleChange}
           />
-          {/* TODO: Add error message for email */}
+          {errors["email"] && (
+            <p className="error-message">{errors["email"]}</p>
+          )}
         </div>
-        
+
         <div className="form-group">
           <label htmlFor="age">Age:</label>
           <input
@@ -114,9 +210,9 @@ const UserForm: React.FC = () => {
             value={userData.age}
             onChange={handleChange}
           />
-          {/* TODO: Add error message for age */}
+          {errors["age"] && <p className="error-message">{errors["age"]}</p>}
         </div>
-        
+
         <div className="form-group">
           <label htmlFor="occupation">Occupation:</label>
           <input
@@ -126,10 +222,12 @@ const UserForm: React.FC = () => {
             value={userData.occupation}
             onChange={handleChange}
           />
-          {/* TODO: Add error message for occupation */}
+          {errors["occupation"] && <p className="error-message">{errors["occupation"]}</p>}
         </div>
-        
-        <button type="submit">Submit</button>
+
+        <button type="submit" disabled={isSubmitting}>
+          {isSubmitting ? 'Submitting...' : 'Submit'}
+        </button>
       </form>
     </div>
   );
