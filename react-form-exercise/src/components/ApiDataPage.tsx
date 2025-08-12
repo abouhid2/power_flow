@@ -15,24 +15,26 @@ const ApiDataPage: React.FC = () => {
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
 
   useEffect(() => {
-    const fetchData = async () => {
-      setIsLoading(true);
+    const fetchData = async() => {
       try {
-        // Using JSONPlaceholder API for demo purposes
-        const response = await fetch('https://jsonplaceholder.typicode.com/posts');
-        
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
+        const response = await fetch("https://jsonplaceholder.typicode.com/posts");
+        if (response.ok){
+          throw new Error('erro')
         }
-        
-        const data = await response.json();
-        setPosts(data.slice(0, 10)); // Limiting to 10 posts for simplicity
+
+        const posts = await response.json()
+        debugger
+        setPosts(posts.slice(0,10))
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An unknown error occurred');
+        debugger
+        // setError("err.message")
+        setError(
+          err instanceof Error ? err.message : "An unknown error occurred"
+        );
       } finally {
-        setIsLoading(false);
+        setIsLoading(false)
       }
-    };
+    }
 
     fetchData();
   }, []);

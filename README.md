@@ -1,77 +1,64 @@
-# Power Flow Analysis
+# Ruby on Rails Interview Test
 
-A Python-based power flow analysis tool that can parse and analyze IEEE standard power flow files.
+This repository contains an incomplete Ruby on Rails application that you need to complete as part of a technical interview assessment. The test covers common Rails topics that are frequently asked in job interviews.
 
-## Features
+## Tasks
 
-- Parse IEEE standard PWF (Power Flow) files
-- Extract bus data (DBAR) and branch data (DLIN)
-- Display power system information in a formatted table
-- Support for voltage, power generation, and load data
-
-## File Format
-
-The project works with IEEE format PWF files that contain:
-
-- DBAR: Bus data section with bus number, type, voltage, generation, and load information
-- DLIN: Branch data section with line/transformer parameters
-- DGLT: System parameters
-
-### DBAR Format
-
-Each bus record contains:
-
-- Bus number (columns 1-5)
-- Type (column 8): 0=PQ, 1=PV, 2=slack
-- Voltage in p.u. (columns 25-29): Stored as 5 digits (10600. means 1.06 p.u.)
-- Active generation PG (columns 33-37)
-- Reactive generation QG (columns 38-42)
-- Minimum reactive generation QN (columns 43-47)
-- Maximum reactive generation QM (columns 48-52)
-- Active load PL (columns 59-63)
-- Reactive load QL (columns 64-68)
-- Shunt component SH (columns 69-73)
-
-### DLIN Format
-
-Each branch record contains:
-
-- From bus (columns 1-5)
-- To bus (columns 11-15)
-- Circuit ID (columns 16-17)
-- Resistance in % (columns 21-26)
-- Reactance in % (columns 27-32)
-- Susceptance in Mvar (columns 33-38)
-- Tap ratio (columns 39-43)
-- Phase shift (columns 54-58)
-
-## Usage
-
-```python
-# Parse a PWF file
-python leitura14.py
-
-# Output example:
-# Bus Information:
-# ====================================================================================================
-# Bus  | Type  |  Voltage   |    PG    |    QG    |    QN    |    QM    |    PL    |    QL    |    SH
-# ----------------------------------------------------------------------------------------------------
-#  1   |   2   |    1.06    |  232.4   |  -16.9   |   None   |   None   |   None   |   None   |   None
-#  2   |   1   |   1.045    |   40.0   |   42.4   |  -40.0   |   50.0   |   21.7   |   12.7   |   None
-# ...
-```
-
-## Files
-
-- `leitura14.py`: Python parser for PWF files
-- `ieee14.pwf`: IEEE 14 bus test case
-- `Leitura14.m`: MATLAB version of the parser (reference implementation)
+1. Complete the RSpec tests in `rails_interview_test.rb`
+2. Implement the Product model in `product_model.rb`
+3. Implement the ProductsController in `products_controller.rb`
+4. Implement the ProductNotificationJob in `product_notification_job.rb`
 
 ## Requirements
 
-- Python 3.6+
-- NumPy
+The application should have the following features:
 
-## License
+1. **Product Management**:
 
-This project is available as open source under the terms of the MIT License.
+   - CRUD operations for products
+   - Products belong to categories and have many reviews
+   - Validation for product attributes
+   - Slug generation for SEO-friendly URLs
+
+2. **Authentication & Authorization**:
+
+   - User authentication system
+   - Role-based access control (admin vs regular users)
+   - Protect certain actions based on user roles
+
+3. **Performance Optimization**:
+
+   - Implement eager loading to prevent N+1 queries
+   - Implement caching for frequently accessed pages
+   - Optimize database queries
+
+4. **Background Processing**:
+   - Use background jobs for sending email notifications
+   - Implement proper error handling and retries
+
+## Evaluation Criteria
+
+Your solution will be evaluated based on:
+
+1. **Code Quality**: Clean, readable, and well-organized code
+2. **Test Coverage**: Comprehensive tests for all features
+3. **Rails Best Practices**: Following Rails conventions and best practices
+4. **Performance**: Efficient database queries and optimizations
+5. **Security**: Proper authentication, authorization, and parameter sanitization
+
+## Getting Started
+
+1. Review the files provided in this repository
+2. Implement the missing functionality in each file
+3. Run the tests to ensure your implementation passes all test cases
+4. Document any assumptions or design decisions you made
+
+## Bonus Points
+
+- Implement API endpoints with proper JSON serialization
+- Add pagination for the products index
+- Implement search functionality
+- Add sorting and filtering options
+- Implement a simple admin dashboard
+
+Good luck!
