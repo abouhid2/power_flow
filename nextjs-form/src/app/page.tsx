@@ -20,6 +20,7 @@ const Home = () => {
         console.error("Failed to fetch todos:", error);
       } finally {
         setLoading(false);
+        // setLoading(false);
       }
     };
     fetchTodos();
